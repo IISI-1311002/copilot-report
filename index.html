@@ -29,6 +29,35 @@ body {
 }
 .page-header h1 { font-size: 16px; font-weight: 600; letter-spacing: .3px; }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#deptFilter {
+  background: #334155;
+  color: #e2e8f0;
+  border: 1px solid #475569;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  min-width: 140px;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 28px;
+}
+#deptFilter:hover { background-color: #3d4f65; border-color: #64748b; }
+#deptFilter:focus { border-color: #60a5fa; }
+#deptFilter option { background: #1e293b; color: #e2e8f0; }
+
 #exportBtn {
   background: #2563eb;
   color: white;
@@ -201,7 +230,12 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 <header class="page-header">
   <h1>GitHub Copilot 使用分析報表</h1>
-  <button id="exportBtn" disabled>&#8595; 匯出 CSV</button>
+  <div class="header-right">
+    <select id="deptFilter" disabled>
+      <option value="">全部</option>
+    </select>
+    <button id="exportBtn" disabled>&#8595; 匯出 CSV</button>
+  </div>
 </header>
 
 <div class="main">
@@ -244,6 +278,9 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
       <span class="stat-num stat-warn" id="statNotFound">0</span>
       <span>人未對應通訊錄</span>
     </div>
+    <div class="stat-pill" id="statFilterPill" style="display:none;">
+      <span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;" id="statFilterLabel"></span>
+    </div>
   </div>
 
   <!-- Table -->
@@ -283,6 +320,7 @@ let rawRowCount = 0;
 
 let sortCol = 'pruCost';
 let sortDir = 'desc';
+let selectedDept = '';   // '' = 全部
 
 const PRU_QUOTA = 300;
 
@@ -385,6 +423,15 @@ function processData() {
     });
   }
 
+  /* Populate dept filter */
+  const deptFilter = document.getElementById('deptFilter');
+  const depts = [...new Set(results.map(r => r.dept).filter(Boolean))].sort();
+  const prevDept = deptFilter.value;
+  deptFilter.innerHTML = '<option value="">全部</option>' +
+    depts.map(d => `<option value="${d}"${d === prevDept ? ' selected' : ''}>${d}</option>`).join('');
+  if (!depts.includes(prevDept)) selectedDept = '';
+  deptFilter.disabled = false;
+
   renderTable();
 }
 
@@ -404,17 +451,24 @@ function sortResults() {
 }
 
 /* ── Render ──────────────────────────────────── */
+function getFilteredResults() {
+  if (!selectedDept) return results;
+  return results.filter(r => r.dept === selectedDept);
+}
+
 function renderTable() {
   sortResults();
 
-  const totPru     = results.reduce((s, r) => s + r.pru,     0);
-  const totAic     = results.reduce((s, r) => s + r.aic,     0);
-  const totPruCost = results.reduce((s, r) => s + r.pruCost, 0);
-  const totAicCost = results.reduce((s, r) => s + r.aicCost, 0);
-  const nfCount    = results.filter(r => !r.found).length;
+  const filtered   = getFilteredResults();
+
+  const totPru     = filtered.reduce((s, r) => s + r.pru,     0);
+  const totAic     = filtered.reduce((s, r) => s + r.aic,     0);
+  const totPruCost = filtered.reduce((s, r) => s + r.pruCost, 0);
+  const totAicCost = filtered.reduce((s, r) => s + r.aicCost, 0);
+  const nfCount    = filtered.filter(r => !r.found).length;
 
   /* Summary */
-  document.getElementById('statUsers').textContent = results.length.toLocaleString();
+  document.getElementById('statUsers').textContent = filtered.length.toLocaleString();
   document.getElementById('statRows').textContent  = rawRowCount.toLocaleString();
   document.getElementById('statPru').textContent   = round2(totPru).toLocaleString();
   document.getElementById('statAic').textContent   = round2(totAic).toLocaleString();
@@ -427,6 +481,16 @@ function renderTable() {
   }
   document.getElementById('summary').style.display = '';
 
+  /* Filter indicator */
+  const filterPill  = document.getElementById('statFilterPill');
+  const filterLabel = document.getElementById('statFilterLabel');
+  if (selectedDept) {
+    filterLabel.textContent = '篩選：' + selectedDept;
+    filterPill.style.display = '';
+  } else {
+    filterPill.style.display = 'none';
+  }
+
   /* Sort indicators */
   document.querySelectorAll('thead th[data-col]').forEach(th => {
     th.classList.remove('asc', 'desc', 'active');
@@ -434,7 +498,7 @@ function renderTable() {
   });
 
   /* Rows */
-  document.getElementById('tableBody').innerHTML = results.map((r, i) => {
+  document.getElementById('tableBody').innerHTML = filtered.map((r, i) => {
     const nameCell = r.found
       ? esc(r.name)
       : `<span class="not-found">${r.name || '(未對應)'}</span>`;
@@ -465,7 +529,7 @@ function renderTable() {
   </tr>`;
 
   document.getElementById('tableContainer').style.display = '';
-  document.getElementById('exportBtn').disabled = false;
+  document.getElementById('exportBtn').disabled = filtered.length === 0;
 }
 
 function esc(s) {
@@ -478,7 +542,8 @@ function esc(s) {
 document.getElementById('exportBtn').addEventListener('click', () => {
   const hdr   = ['GitHub帳號','姓名','部門','處別','組別','PRU','AIC','PRU費用USD','AIC費用USD'];
   const lines = [hdr.join(',')];
-  for (const r of results) {
+  const exportData = getFilteredResults();
+  for (const r of exportData) {
     lines.push([
       csvCell(r.username), csvCell(r.name), csvCell(r.dept),
       csvCell(r.division), csvCell(r.group),
@@ -488,7 +553,7 @@ document.getElementById('exportBtn').addEventListener('click', () => {
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
   const a    = Object.assign(document.createElement('a'), {
     href: URL.createObjectURL(blob),
-    download: `copilot_usage_${today()}.csv`
+    download: `copilot_usage${selectedDept ? '_' + selectedDept : ''}_${today()}.csv`
   });
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 10000);
@@ -542,6 +607,12 @@ function setupZone(zoneId, inputId, statusId, onLoad) {
 
 setupZone('usageZone',   'usageFile',   'usageStatus',   rows => { usageData   = rows; processData(); });
 setupZone('addressZone', 'addressFile', 'addressStatus', rows => { addressData = rows; processData(); });
+
+/* ── Dept filter ────────────────────────────── */
+document.getElementById('deptFilter').addEventListener('change', function() {
+  selectedDept = this.value;
+  if (results.length) renderTable();
+});
 
 /* ── Column sort ─────────────────────────────── */
 document.querySelectorAll('thead th[data-col]').forEach(th => {
