@@ -526,7 +526,7 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 <script>
 'use strict';
 
@@ -898,39 +898,115 @@ document.addEventListener('keydown', e => {
     closeManualMapDialog();
 });
 
-/* ── Export XLSX ─────────────────────────────── */
-document.getElementById('exportBtn').addEventListener('click', () => {
-  if (typeof XLSX === 'undefined') {
-    alert('XLSX 函式庫載入中，請稍後再試');
-    return;
-  }
-  const hdr = ['GitHub帳號','姓名','部門','處別','組別','AIC用量','費用USD','超額費用USD'];
-  const exportData = getFilteredResults();
-  const rows = exportData.map(r => ({
-    'GitHub帳號': r.username,
-    '姓名':       r.name,
-    '部門':       r.dept,
-    '處別':       r.division,
-    '組別':       r.group,
-    'AIC用量':    r.aic,
-    '費用USD':    r.gross,
-    '超額費用USD': r.net
+/* ── Export XLSX (ExcelJS) ───────────────────── */
+const HDR_COLS = [
+  { key: 'username', header: 'GitHub帳號',  width: 20 },
+  { key: 'name',     header: '姓名',         width: 14 },
+  { key: 'dept',     header: '部門',         width: 22 },
+  { key: 'division', header: '處別',         width: 22 },
+  { key: 'group',    header: '組別',         width: 16 },
+  { key: 'aic',      header: 'AIC用量',      width: 14 },
+  { key: 'gross',    header: '費用USD',      width: 14 },
+  { key: 'net',      header: '超額費用USD',  width: 16 },
+];
+
+function safeSheetName(name) {
+  return (name || '未分類').replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31);
+}
+
+function fillSheet(ws, rows) {
+  ws.columns = HDR_COLS.map(c => ({ key: c.key, header: c.header, width: c.width }));
+
+  /* 表頭樣式：淡灰底色 */
+  ws.getRow(1).eachCell(cell => {
+    cell.fill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    cell.font   = { bold: true };
+    cell.border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+  });
+  ws.getRow(1).height = 28;
+
+  /* AutoFilter */
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: HDR_COLS.length } };
+
+  /* 資料列 */
+  rows.forEach(r => ws.addRow({
+    username: r.username, name: r.name, dept: r.dept,
+    division: r.division, group: r.group,
+    aic: r.aic, gross: r.gross, net: r.net
   }));
 
-  const ws = XLSX.utils.json_to_sheet(rows, { header: hdr });
+  /* 總計列：使用公式 */
+  const dataStart = 2;                        // 資料從第 2 列開始
+  const dataEnd   = rows.length + 1;          // 最後一筆資料列號
+  const totalRowNum = dataEnd + 1;
+  const colLetter = col => ws.getColumn(col).letter;
 
-  /* 欄寬 */
-  ws['!cols'] = [
-    { wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 14 },
-    { wch: 12 }, { wch: 14 }, { wch: 14 }
-  ];
+  const aicCol   = colLetter(6);
+  const grossCol = colLetter(7);
+  const netCol   = colLetter(8);
 
-  /* AutoFilter 套用在表頭列 */
-  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: hdr.length - 1 } }) };
+  const totalRow = ws.getRow(totalRowNum);
+  totalRow.getCell(1).value = '合計';
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Copilot使用報表');
-  XLSX.writeFile(wb, `copilot_usage${selectedDept ? '_' + selectedDept : ''}_${today()}.xlsx`);
+  [
+    { col: 6, letter: aicCol },
+    { col: 7, letter: grossCol },
+    { col: 8, letter: netCol },
+  ].forEach(({ col, letter }) => {
+    const cell = totalRow.getCell(col);
+    cell.value        = { formula: `SUM(${letter}${dataStart}:${letter}${dataEnd})` };
+    cell.numFmt       = '#,##0.00';
+  });
+
+  totalRow.eachCell({ includeEmpty: true }, cell => {
+    cell.fill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
+    cell.font   = { bold: true };
+    cell.border = { top: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
+  });
+}
+
+document.getElementById('exportBtn').addEventListener('click', async () => {
+  if (typeof ExcelJS === 'undefined') {
+    alert('ExcelJS 函式庫載入中，請稍後再試');
+    return;
+  }
+
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.textContent = '匯出中…';
+
+  try {
+    const wb      = new ExcelJS.Workbook();
+    const allData = getFilteredResults();
+
+    if (selectedDept) {
+      /* 已選部門：單一 tab */
+      fillSheet(wb.addWorksheet(safeSheetName(selectedDept)), allData);
+    } else {
+      /* 全部模式：全部 tab + 各部門 tab */
+      fillSheet(wb.addWorksheet('全部'), allData);
+
+      const depts = [...new Set(allData.map(r => r.dept).filter(Boolean))].sort();
+      for (const dept of depts) {
+        fillSheet(wb.addWorksheet(safeSheetName(dept)), allData.filter(r => r.dept === dept));
+      }
+
+      const noDepRows = allData.filter(r => !r.dept);
+      if (noDepRows.length) fillSheet(wb.addWorksheet('未對應'), noDepRows);
+    }
+
+    const buf  = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const a    = Object.assign(document.createElement('a'), {
+      href: URL.createObjectURL(blob),
+      download: `copilot_usage_${today()}.xlsx`
+    });
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↓ 匯出 XLSX';
+  }
 });
 
 function today() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
