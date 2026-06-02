@@ -914,6 +914,9 @@ document.getElementById('exportBtn').addEventListener('click', () => {
 function today() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
 
 /* ── Drop Zone ───────────────────────────────── */
+const LS_ADDRESS_KEY  = 'copilot_address_csv';
+const LS_ADDRESS_NAME = 'copilot_address_name';
+
 function setupZone(zoneId, inputId, statusId, onLoad) {
   const zone   = document.getElementById(zoneId);
   const input  = document.getElementById(inputId);
@@ -925,7 +928,7 @@ function setupZone(zoneId, inputId, statusId, onLoad) {
     reader.onload = e => {
       try {
         const rows = parseCSV(e.target.result);
-        onLoad(rows);
+        onLoad(rows, file.name, e.target.result);
         status.textContent = `✓ ${file.name}（${rows.length - 1} 筆）`;
         status.className   = 'zone-status ok';
         zone.classList.add('loaded');
@@ -941,7 +944,7 @@ function setupZone(zoneId, inputId, statusId, onLoad) {
   zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
   input.addEventListener('change', e => handleFile(e.target.files[0]));
 
-  /* Drag events — entire window listens for dragenter to activate zones */
+  /* Drag events */
   zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
   zone.addEventListener('drop', e => {
@@ -951,8 +954,37 @@ function setupZone(zoneId, inputId, statusId, onLoad) {
   });
 }
 
-setupZone('usageZone',   'usageFile',   'usageStatus',   rows => { usageData   = rows; processData(); });
-setupZone('addressZone', 'addressFile', 'addressStatus', rows => { addressData = rows; processData(); });
+setupZone('usageZone', 'usageFile', 'usageStatus', (rows) => {
+  usageData = rows;
+  processData();
+});
+
+setupZone('addressZone', 'addressFile', 'addressStatus', (rows, filename, raw) => {
+  addressData = rows;
+  try {
+    localStorage.setItem(LS_ADDRESS_KEY,  raw);
+    localStorage.setItem(LS_ADDRESS_NAME, filename);
+  } catch(e) { /* 空間不足時靜默略過 */ }
+  processData();
+});
+
+/* ── 頁面載入時還原通訊錄 ────────────────────── */
+(function restoreAddress() {
+  const raw  = localStorage.getItem(LS_ADDRESS_KEY);
+  const name = localStorage.getItem(LS_ADDRESS_NAME) || '通訊錄';
+  if (!raw) return;
+  try {
+    const rows = parseCSV(raw);
+    addressData = rows;
+    const status = document.getElementById('addressStatus');
+    status.textContent = `✓ ${name}（${rows.length - 1} 筆，已快取）`;
+    status.className   = 'zone-status ok';
+    document.getElementById('addressZone').classList.add('loaded');
+  } catch(e) {
+    localStorage.removeItem(LS_ADDRESS_KEY);
+    localStorage.removeItem(LS_ADDRESS_NAME);
+  }
+})();
 
 /* ── Dept filter ────────────────────────────── */
 document.getElementById('deptFilter').addEventListener('change', function() {
