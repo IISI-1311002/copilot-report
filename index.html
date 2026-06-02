@@ -210,7 +210,6 @@ tbody td:last-child { border-right: none; }
 
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .not-found { color: #ea580c; }
-.pru-over  { color: #dc2626; font-weight: 700; }
 
 tfoot td {
   background: #f1f5f9;
@@ -453,12 +452,16 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
       <span>筆記錄</span>
     </div>
     <div class="stat-pill">
-      <span class="stat-num" id="statPru">0</span>
-      <span>總 PRU</span>
+      <span class="stat-num" id="statAic">0</span>
+      <span>總 AIC 用量</span>
     </div>
     <div class="stat-pill">
-      <span class="stat-num" id="statAic">0</span>
-      <span>總 AIC</span>
+      <span class="stat-num" id="statGross">$0</span>
+      <span>總費用</span>
+    </div>
+    <div class="stat-pill">
+      <span class="stat-num" id="statNet">$0</span>
+      <span>總超額費用</span>
     </div>
     <div class="stat-pill" id="statNotFoundPill" style="display:none;">
       <span class="stat-num stat-warn" id="statNotFound">0</span>
@@ -482,10 +485,9 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
             <th data-col="dept"      data-type="str">部門</th>
             <th data-col="division"  data-type="str">處別</th>
             <th data-col="group"     data-type="str">組別</th>
-            <th data-col="pru"     data-type="num">PRU</th>
-            <th data-col="aic"     data-type="num">AIC</th>
-            <th data-col="pruCost" data-type="num">PRU費用 (USD)</th>
-            <th data-col="aicCost" data-type="num">AIC費用 (USD)</th>
+                    <th data-col="aic"      data-type="num">AIC 用量</th>
+            <th data-col="gross"   data-type="num">費用 (USD)</th>
+            <th data-col="net"     data-type="num">超額費用 (USD)</th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>
@@ -528,11 +530,10 @@ let addressData = null;
 let results     = [];
 let rawRowCount = 0;
 
-let sortCol = 'pruCost';
+let sortCol = 'gross';
 let sortDir = 'desc';
 let selectedDept = '';   // '' = 全部
 
-const PRU_QUOTA = 300;
 
 /* 手動對應表：empId → {name, dept, division, group} */
 const manualMap = new Map();
@@ -580,59 +581,59 @@ function processData() {
   }
 
   /* Detect column positions from header */
-  const hdrs  = usageData[0].map(h => h.trim().toLowerCase());
+  const hdrs  = usageData[0].map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
   const ci    = n => hdrs.indexOf(n);
-  const iUser    = ci('username');
-  const iQty     = ci('quantity');
-  const iAic     = ci('aic_quantity');
-  const iAicGros = ci('aic_gross_amount');
+  const iUser  = ci('username');
+  const iSku   = ci('sku');
+  const iQty   = ci('quantity');
+  const iGross = ci('gross_amount');
+  const iNet   = ci('net_amount');
 
   if (iUser < 0 || iQty < 0) {
     alert('使用報表格式異常：找不到 username 或 quantity 欄位');
     return;
   }
 
-  /* Group by username */
+  /* Group by username, only sku = copilot_ai_credit */
   const uMap = new Map();
   rawRowCount = 0;
 
   for (let i = 1; i < usageData.length; i++) {
     const r    = usageData[i];
-    const user = (r[iUser] || '').trim();
+    const user = (r[iUser] || '').trim().replace(/^"|"$/g, '');
+    const sku  = (r[iSku]  || '').trim().replace(/^"|"$/g, '');
     if (!user) continue;
+    if (sku !== 'copilot_ai_credit') continue;
     rawRowCount++;
 
-    const qty     = parseFloat(r[iQty]     || 0) || 0;
-    const aic     = iAic     >= 0 ? (parseFloat(r[iAic]     || 0) || 0) : 0;
-    const aicGros = iAicGros >= 0 ? (parseFloat(r[iAicGros] || 0) || 0) : 0;
+    const qty   = parseFloat((r[iQty]   || '0').replace(/"/g,'')) || 0;
+    const gross = parseFloat((r[iGross] || '0').replace(/"/g,'')) || 0;
+    const net   = parseFloat((r[iNet]   || '0').replace(/"/g,'')) || 0;
 
     if (!uMap.has(user)) {
       uMap.set(user, { username: user, empId: user.replace(/^IISI-/i, ''),
-                       pru: 0, aic: 0, aicCost: 0 });
+                       aic: 0, gross: 0, net: 0 });
     }
     const u = uMap.get(user);
-    u.pru     += qty;
-    u.aic     += aic;
-    u.aicCost += aicGros;
+    u.aic   += qty;
+    u.gross += gross;
+    u.net   += net;
   }
 
   /* Build results */
   results = [];
   for (const [, u] of uMap) {
-    const emp    = empMap.get(u.empId) || manualMap.get(u.empId);
-    const pru    = round2(u.pru);
-    const pruCost = round4(Math.max(0, pru - PRU_QUOTA) * 0.04);
+    const emp = empMap.get(u.empId) || manualMap.get(u.empId);
     results.push({
       username: u.username,
       name:     emp ? emp.name     : '',
       dept:     emp ? emp.dept     : '',
       division: emp ? emp.division : '',
       group:    emp ? emp.group    : '',
-      pru,
-      aic:      round2(u.aic),
-      pruCost,
-      aicCost:  round4(u.aicCost),
-      found:    !!emp
+      aic:   round2(u.aic),
+      gross: round4(u.gross),
+      net:   round4(u.net),
+      found: !!emp
     });
   }
 
@@ -674,17 +675,17 @@ function renderTable() {
 
   const filtered   = getFilteredResults();
 
-  const totPru     = filtered.reduce((s, r) => s + r.pru,     0);
-  const totAic     = filtered.reduce((s, r) => s + r.aic,     0);
-  const totPruCost = filtered.reduce((s, r) => s + r.pruCost, 0);
-  const totAicCost = filtered.reduce((s, r) => s + r.aicCost, 0);
-  const nfCount    = filtered.filter(r => !r.found).length;
+  const totAic   = filtered.reduce((s, r) => s + r.aic,   0);
+  const totGross = filtered.reduce((s, r) => s + r.gross, 0);
+  const totNet   = filtered.reduce((s, r) => s + r.net,   0);
+  const nfCount  = filtered.filter(r => !r.found).length;
 
   /* Summary */
   document.getElementById('statUsers').textContent = filtered.length.toLocaleString();
   document.getElementById('statRows').textContent  = rawRowCount.toLocaleString();
-  document.getElementById('statPru').textContent   = round2(totPru).toLocaleString();
   document.getElementById('statAic').textContent   = round2(totAic).toLocaleString();
+  document.getElementById('statGross').textContent = '$' + fmt2(round4(totGross));
+  document.getElementById('statNet').textContent   = '$' + fmt2(round4(totNet));
   const nfPill = document.getElementById('statNotFoundPill');
   if (nfCount > 0) {
     document.getElementById('statNotFound').textContent = nfCount;
@@ -719,9 +720,6 @@ function renderTable() {
     } else {
       nameCell = `<span class="not-found">${r.name || '(未對應)'}</span>`;
     }
-    const pruCell  = r.pru > PRU_QUOTA
-      ? `<span class="pru-over">${r.pru.toLocaleString()}</span>`
-      : r.pru.toLocaleString();
     return `<tr>
       <td class="num">${i + 1}</td>
       <td>${esc(r.username)}</td>
@@ -729,20 +727,18 @@ function renderTable() {
       <td>${esc(r.dept)}</td>
       <td>${esc(r.division)}</td>
       <td>${esc(r.group)}</td>
-      <td class="num">${pruCell}</td>
       <td class="num">${r.aic.toLocaleString()}</td>
-      <td class="num">$${fmt2(r.pruCost)}</td>
-      <td class="num">$${fmt2(r.aicCost)}</td>
+      <td class="num">$${fmt2(r.gross)}</td>
+      <td class="num">$${fmt2(r.net)}</td>
     </tr>`;
   }).join('');
 
   /* Footer */
   document.getElementById('tableFoot').innerHTML = `<tr>
     <td colspan="6">合計</td>
-    <td class="num">${round2(totPru).toLocaleString()}</td>
     <td class="num">${round2(totAic).toLocaleString()}</td>
-    <td class="num">$${fmt2(round4(totPruCost))}</td>
-    <td class="num">$${fmt2(round4(totAicCost))}</td>
+    <td class="num">$${fmt2(round4(totGross))}</td>
+    <td class="num">$${fmt2(round4(totNet))}</td>
   </tr>`;
 
   document.getElementById('tableContainer').style.display = '';
@@ -881,14 +877,14 @@ document.addEventListener('keydown', e => {
 
 /* ── Export CSV ──────────────────────────────── */
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const hdr   = ['GitHub帳號','姓名','部門','處別','組別','PRU','AIC','PRU費用USD','AIC費用USD'];
+  const hdr   = ['GitHub帳號','姓名','部門','處別','組別','AIC用量','費用USD','超額費用USD'];
   const lines = [hdr.join(',')];
   const exportData = getFilteredResults();
   for (const r of exportData) {
     lines.push([
       csvCell(r.username), csvCell(r.name), csvCell(r.dept),
       csvCell(r.division), csvCell(r.group),
-      r.pru, r.aic, r.pruCost, r.aicCost
+      r.aic, r.gross, r.net
     ].join(','));
   }
   const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
