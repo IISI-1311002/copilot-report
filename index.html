@@ -419,7 +419,7 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
     <select id="deptFilter" disabled>
       <option value="">全部</option>
     </select>
-    <button id="exportBtn" disabled>&#8595; 匯出 CSV</button>
+    <button id="exportBtn" disabled>&#8595; 匯出 XLSX</button>
   </div>
 </header>
 
@@ -521,6 +521,7 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 'use strict';
 
@@ -875,32 +876,40 @@ document.addEventListener('keydown', e => {
     closeManualMapDialog();
 });
 
-/* ── Export CSV ──────────────────────────────── */
+/* ── Export XLSX ─────────────────────────────── */
 document.getElementById('exportBtn').addEventListener('click', () => {
-  const hdr   = ['GitHub帳號','姓名','部門','處別','組別','AIC用量','費用USD','超額費用USD'];
-  const lines = [hdr.join(',')];
-  const exportData = getFilteredResults();
-  for (const r of exportData) {
-    lines.push([
-      csvCell(r.username), csvCell(r.name), csvCell(r.dept),
-      csvCell(r.division), csvCell(r.group),
-      r.aic, r.gross, r.net
-    ].join(','));
+  if (typeof XLSX === 'undefined') {
+    alert('XLSX 函式庫載入中，請稍後再試');
+    return;
   }
-  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
-  const a    = Object.assign(document.createElement('a'), {
-    href: URL.createObjectURL(blob),
-    download: `copilot_usage${selectedDept ? '_' + selectedDept : ''}_${today()}.csv`
-  });
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-});
+  const hdr = ['GitHub帳號','姓名','部門','處別','組別','AIC用量','費用USD','超額費用USD'];
+  const exportData = getFilteredResults();
+  const rows = exportData.map(r => ({
+    'GitHub帳號': r.username,
+    '姓名':       r.name,
+    '部門':       r.dept,
+    '處別':       r.division,
+    '組別':       r.group,
+    'AIC用量':    r.aic,
+    '費用USD':    r.gross,
+    '超額費用USD': r.net
+  }));
 
-function csvCell(v) {
-  const s = String(v == null ? '' : v);
-  return (s.includes(',') || s.includes('"') || s.includes('\n'))
-    ? `"${s.replace(/"/g,'""')}"` : s;
-}
+  const ws = XLSX.utils.json_to_sheet(rows, { header: hdr });
+
+  /* 欄寬 */
+  ws['!cols'] = [
+    { wch: 18 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 14 },
+    { wch: 12 }, { wch: 14 }, { wch: 14 }
+  ];
+
+  /* AutoFilter 套用在表頭列 */
+  ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: 0, c: hdr.length - 1 } }) };
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Copilot使用報表');
+  XLSX.writeFile(wb, `copilot_usage${selectedDept ? '_' + selectedDept : ''}_${today()}.xlsx`);
+});
 
 function today() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
 
