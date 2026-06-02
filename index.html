@@ -471,6 +471,11 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
     <div class="stat-pill" id="statFilterPill" style="display:none;">
       <span style="background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;" id="statFilterLabel"></span>
     </div>
+    <div style="flex:1;"></div>
+    <div class="stat-pill" id="statDatePill" style="display:none;">
+      <span style="color:#94a3b8;font-size:12px;">資料日期</span>
+      <span style="background:#f1f5f9;color:#334155;padding:2px 10px;border-radius:4px;font-size:12px;font-weight:600;" id="statDate"></span>
+    </div>
   </div>
 
   <!-- Table -->
@@ -534,6 +539,7 @@ let rawRowCount = 0;
 let sortCol = 'gross';
 let sortDir = 'desc';
 let selectedDept = '';   // '' = 全部
+let latestDate = '';
 
 
 /* 手動對應表：empId → {name, dept, division, group} */
@@ -589,6 +595,7 @@ function processData() {
   const iQty   = ci('quantity');
   const iGross = ci('gross_amount');
   const iNet   = ci('net_amount');
+  const iDate  = ci('date');
 
   if (iUser < 0 || iQty < 0) {
     alert('使用報表格式異常：找不到 username 或 quantity 欄位');
@@ -598,6 +605,7 @@ function processData() {
   /* Group by username, only sku = copilot_ai_credit */
   const uMap = new Map();
   rawRowCount = 0;
+  latestDate = '';
 
   for (let i = 1; i < usageData.length; i++) {
     const r    = usageData[i];
@@ -606,6 +614,11 @@ function processData() {
     if (!user) continue;
     if (sku !== 'copilot_ai_credit') continue;
     rawRowCount++;
+
+    if (iDate >= 0) {
+      const d = (r[iDate] || '').trim().replace(/^"|"$/g, '');
+      if (d > latestDate) latestDate = d;
+    }
 
     const qty   = parseFloat((r[iQty]   || '0').replace(/"/g,'')) || 0;
     const gross = parseFloat((r[iGross] || '0').replace(/"/g,'')) || 0;
@@ -704,6 +717,15 @@ function renderTable() {
     filterPill.style.display = '';
   } else {
     filterPill.style.display = 'none';
+  }
+
+  /* Data date */
+  const datePill = document.getElementById('statDatePill');
+  if (latestDate) {
+    document.getElementById('statDate').textContent = latestDate;
+    datePill.style.display = '';
+  } else {
+    datePill.style.display = 'none';
   }
 
   /* Sort indicators */
