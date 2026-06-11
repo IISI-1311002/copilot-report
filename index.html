@@ -164,6 +164,71 @@ body {
 .stat-warn { color: #ea580c; }
 .stat-num.stat-warn { color: #ea580c; }
 
+/* ── View Tabs ──────────────────────────────── */
+.tab-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.tab-btn {
+  background: white;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  padding: 7px 18px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s, border-color .15s;
+}
+.tab-btn:hover { border-color: #94a3b8; color: #334155; }
+.tab-btn.active {
+  background: #1e293b;
+  color: white;
+  border-color: #1e293b;
+}
+
+/* ── Chart ──────────────────────────────────── */
+#chartContainer {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  padding: 18px 20px 14px;
+}
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #334155;
+  flex-wrap: wrap;
+}
+.chart-controls label { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.chart-controls input {
+  width: 90px;
+  padding: 5px 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.chart-controls .pool-amount { color: #16a34a; font-weight: 600; }
+.chart-note {
+  font-size: 12px;
+  color: #9a3412;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+.chart-box {
+  position: relative;
+  height: 400px;
+}
+
 /* ── Table ──────────────────────────────────── */
 #tableContainer {
   background: white;
@@ -478,6 +543,29 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
     </div>
   </div>
 
+  <!-- View tabs -->
+  <div class="tab-bar" id="viewTabs" style="display:none;">
+    <button class="tab-btn active" data-view="table">明細表格</button>
+    <button class="tab-btn" data-view="chart">累積趨勢圖</button>
+  </div>
+
+  <!-- Chart -->
+  <div id="chartContainer" style="display:none;">
+    <div class="chart-controls">
+      <label>Seat 數
+        <input type="number" id="seatInput" min="0" step="1">
+      </label>
+      <label>AIC 量
+        <input type="number" id="aicInput" min="0" step="100" value="3000">
+      </label>
+      <span class="pool-amount">總 Pool 使用金額：<b id="poolAmount">$0.00</b></span>
+    </div>
+    <div class="chart-note" id="chartNote" style="display:none;"></div>
+    <div class="chart-box">
+      <canvas id="trendChart"></canvas>
+    </div>
+  </div>
+
   <!-- Table -->
   <div id="tableContainer" style="display:none;">
     <div class="table-wrapper">
@@ -527,6 +615,7 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 'use strict';
 
@@ -540,6 +629,10 @@ let sortCol = 'gross';
 let sortDir = 'desc';
 let selectedDept = '';   // '' = 全部
 let latestDate = '';
+
+let dailyRows  = [];     // 逐筆 {username, date, qty}，供趨勢圖統計
+let trendChart = null;
+let currentView = 'table';
 
 
 /* 手動對應表：empId → {name, dept, division, group} */
@@ -606,6 +699,7 @@ function processData() {
   const uMap = new Map();
   rawRowCount = 0;
   latestDate = '';
+  dailyRows = [];
 
   for (let i = 1; i < usageData.length; i++) {
     const r    = usageData[i];
@@ -615,14 +709,17 @@ function processData() {
     if (sku !== 'copilot_ai_credit') continue;
     rawRowCount++;
 
+    let rowDate = '';
     if (iDate >= 0) {
-      const d = (r[iDate] || '').trim().replace(/^"|"$/g, '');
-      if (d > latestDate) latestDate = d;
+      rowDate = (r[iDate] || '').trim().replace(/^"|"$/g, '');
+      if (rowDate > latestDate) latestDate = rowDate;
     }
 
     const qty   = parseFloat((r[iQty]   || '0').replace(/"/g,'')) || 0;
     const gross = parseFloat((r[iGross] || '0').replace(/"/g,'')) || 0;
     const net   = parseFloat((r[iNet]   || '0').replace(/"/g,'')) || 0;
+
+    if (rowDate) dailyRows.push({ username: user, date: rowDate, qty });
 
     if (!uMap.has(user)) {
       uMap.set(user, { username: user, empId: user.replace(/^IISI-/i, ''),
@@ -764,7 +861,9 @@ function renderTable() {
     <td class="num">$${fmt2(round4(totNet))}</td>
   </tr>`;
 
-  document.getElementById('tableContainer').style.display = '';
+  document.getElementById('viewTabs').style.display = '';
+  setView(currentView);
+  renderChart();
   document.getElementById('exportBtn').disabled = filtered.length === 0;
 }
 
@@ -772,6 +871,173 @@ function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
     .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── View Tabs ───────────────────────────────── */
+function setView(view) {
+  currentView = view;
+  document.querySelectorAll('#viewTabs .tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === view));
+  document.getElementById('tableContainer').style.display = view === 'table' ? '' : 'none';
+  document.getElementById('chartContainer').style.display = view === 'chart' ? '' : 'none';
+}
+
+document.querySelectorAll('#viewTabs .tab-btn').forEach(btn =>
+  btn.addEventListener('click', () => setView(btn.dataset.view)));
+
+/* ── Trend Chart ─────────────────────────────── */
+function parseDay(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function dayKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const AIC_PER_USD = 100;   // 1 USD = 100 AICs
+
+/* Pool 設定：seat 數預設為使用者人數，使用者改過後不再自動覆寫 */
+let seatTouched = false;
+document.getElementById('seatInput').addEventListener('input', () => { seatTouched = true; renderChart(); });
+document.getElementById('aicInput').addEventListener('input', renderChart);
+
+function renderChart() {
+  const note = document.getElementById('chartNote');
+
+  const seatInput = document.getElementById('seatInput');
+  if (!seatTouched) seatInput.value = getFilteredResults().length;
+  const seats    = parseFloat(seatInput.value) || 0;
+  const aicQuota = parseFloat(document.getElementById('aicInput').value) || 0;
+  const poolUsd  = round2(seats * aicQuota / AIC_PER_USD);
+  document.getElementById('poolAmount').textContent = '$' + fmt2(poolUsd);
+
+  if (typeof Chart === 'undefined') {
+    note.textContent = '⚠ 圖表函式庫尚未載入，請檢查網路連線後重新整理頁面。';
+    note.style.display = '';
+    return;
+  }
+
+  /* 依目前部門篩選彙總每日 AIC 用量 */
+  const deptOf = new Map(results.map(r => [r.username, r.dept]));
+  const byDate = new Map();
+  for (const row of dailyRows) {
+    if (selectedDept && deptOf.get(row.username) !== selectedDept) continue;
+    byDate.set(row.date, (byDate.get(row.date) || 0) + row.qty);
+  }
+
+  if (trendChart) { trendChart.destroy(); trendChart = null; }
+
+  const keys = [...byDate.keys()].sort();
+  if (!keys.length) {
+    note.textContent = '⚠ 使用報表中沒有日期欄位，無法繪製趨勢圖。';
+    note.style.display = '';
+    return;
+  }
+
+  /* 從首日到末日逐日累積（中間無資料的日子視為 0） */
+  const first = parseDay(keys[0]);
+  const last  = parseDay(keys[keys.length - 1]);
+  const labels = [], actual = [];
+  let cum = 0;
+  for (let d = new Date(first); d <= last; d.setDate(d.getDate() + 1)) {
+    cum += byDate.get(dayKey(d)) || 0;
+    labels.push(dayKey(d).slice(5));
+    actual.push(round2(cum / AIC_PER_USD));
+  }
+
+  /* 實際天數未滿整月時，依日平均用量以虛線推估至月底 */
+  const monthEnd = new Date(last.getFullYear(), last.getMonth() + 1, 0);
+  const forecast = new Array(actual.length).fill(null);
+  let hasForecast = false;
+  if (last < monthEnd) {
+    hasForecast = true;
+    const days = actual.length;
+    const avg  = cum / AIC_PER_USD / days;   // 日平均（USD）
+    forecast[forecast.length - 1] = actual[actual.length - 1];   // 與實際線的接點
+    let fcum = cum / AIC_PER_USD;
+    for (let d = new Date(last); ; ) {
+      d.setDate(d.getDate() + 1);
+      if (d > monthEnd) break;
+      fcum += avg;
+      labels.push(dayKey(d).slice(5));
+      actual.push(null);
+      forecast.push(round2(fcum));
+    }
+    note.innerHTML =
+      `⚠ 實際資料僅到 <b>${dayKey(last)}</b>（共 ${days} 天）。` +
+      `虛線為依目前日平均用量 <b>$${fmt2(avg)}</b> 推估至 ${dayKey(monthEnd)}，` +
+      `預估月底累積金額約 <b>$${fmt2(fcum)}</b>（1 USD = ${AIC_PER_USD} AICs）。`;
+    note.style.display = '';
+  } else {
+    note.style.display = 'none';
+  }
+
+  const datasets = [{
+    label: 'AIC 累積金額（實際，USD）',
+    data: actual,
+    borderColor: '#2563eb',
+    backgroundColor: 'rgba(37,99,235,.08)',
+    fill: true,
+    tension: .25,
+    borderWidth: 2,
+    pointRadius: 2.5,
+    pointHoverRadius: 5,
+    spanGaps: false
+  }];
+  if (hasForecast) {
+    datasets.push({
+      label: 'AIC 累積金額（推估，USD）',
+      data: forecast,
+      borderColor: '#f97316',
+      borderDash: [6, 4],
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      tension: .25,
+      fill: false
+    });
+  }
+  if (poolUsd > 0) {
+    datasets.push({
+      label: `總 Pool 使用金額（$${fmt2(poolUsd)}）`,
+      data: new Array(labels.length).fill(poolUsd),
+      borderColor: '#16a34a',
+      borderDash: [8, 5],
+      borderWidth: 2,
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      tension: 0,
+      fill: false
+    });
+  }
+
+  trendChart = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { usePointStyle: true } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.parsed.y == null
+              ? null
+              : `${ctx.dataset.label}：$${fmt2(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: `AIC 累積金額（USD，1 USD = ${AIC_PER_USD} AICs）` },
+          ticks: { callback: v => '$' + Number(v).toLocaleString() }
+        },
+        x: { title: { display: true, text: '日期' } }
+      }
+    }
+  });
 }
 
 /* ── Manual Map Modal ────────────────────────── */
