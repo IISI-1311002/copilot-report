@@ -79,7 +79,7 @@ body {
 /* ── Drop Zones ─────────────────────────────── */
 .drop-zones {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 10px;
   margin-bottom: 14px;
 }
@@ -329,9 +329,29 @@ tfoot td {
 }
 tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
-@media (max-width: 700px) {
+@media (max-width: 980px) {
+  .drop-zones { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
   .drop-zones { grid-template-columns: 1fr; }
 }
+
+/* ── Table controls ─────────────────────────── */
+.table-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+  color: #334155;
+  flex-wrap: wrap;
+}
+.table-controls label { display: flex; align-items: center; gap: 6px; font-weight: 600; cursor: pointer; }
+.table-controls .seat-count { margin-left: auto; color: #64748b; font-weight: 500; }
+.table-controls .seat-count b { color: #0f172a; }
+tbody tr.row-zero td { color: #94a3b8; }
+tbody tr.row-zero:hover td { color: #64748b; }
 
 /* ── Manual Map Button ──────────────────────── */
 .btn-manual-summary {
@@ -548,6 +568,12 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
       <span class="zone-status" id="addressStatus">拖曳或點擊上傳</span>
       <span class="zone-drag">放開以載入</span>
     </div>
+    <div class="drop-zone" id="seatZone" tabindex="0" role="button" aria-label="上傳 Seat 使用者 CSV（選填）">
+      <input type="file" accept=".csv" id="seatFile" hidden>
+      <span class="zone-label">Seat CSV<span style="font-weight:400;color:#94a3b8;">（選填）</span></span>
+      <span class="zone-status" id="seatStatus">拖曳或點擊上傳</span>
+      <span class="zone-drag">放開以載入</span>
+    </div>
   </div>
 
   <!-- Summary -->
@@ -555,6 +581,10 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
     <div class="stat-pill">
       <span class="stat-num" id="statUsers">0</span>
       <span>位使用者</span>
+    </div>
+    <div class="stat-pill" id="statSeatPill" style="display:none;">
+      <span class="stat-num" id="statSeat">0</span>
+      <span>位 Seat 使用者</span>
     </div>
     <div class="stat-pill">
       <span class="stat-num" id="statRows">0</span>
@@ -589,7 +619,7 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
   <!-- View tabs -->
   <div class="tab-bar" id="viewTabs" style="display:none;">
-    <button class="tab-btn active" data-view="table">明細表格</button>
+    <button class="tab-btn active" data-view="table">使用量明細</button>
     <button class="tab-btn" data-view="chart">累積趨勢圖</button>
     <button class="tab-btn" data-view="dist">人數常態分佈</button>
   </div>
@@ -660,6 +690,13 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
   <!-- Table -->
   <div id="tableContainer" style="display:none;">
+    <div class="table-controls" id="tableControls" style="display:none;">
+      <label>
+        <input type="checkbox" id="onlyZeroFilter">
+        只顯示使用量為 0 的使用者
+      </label>
+      <span class="seat-count" id="tableSeatNote"></span>
+    </div>
     <div class="table-wrapper">
       <table id="resultTable">
         <thead>
@@ -721,13 +758,17 @@ tfoot td.num { text-align: right; font-variant-numeric: tabular-nums; }
 /* ── State ───────────────────────────────────── */
 let usageData   = null;
 let addressData = null;
-let results     = [];
-let rawRowCount = 0;
+let seatData     = null;     // Seat CSV（選填）
+let seatLoginSet = new Set(); // 全部 seat login（小寫）
+let results      = [];
+let empMap       = new Map();  // empId → {name, dept, division, group}
+let rawRowCount  = 0;
 
 let sortCol = 'gross';
 let sortDir = 'desc';
 let selectedDept = '';   // '' = 全部
 let latestDate = '';
+let onlyZero = false;    // 只顯示使用量為 0 的使用者
 
 let dailyRows  = [];     // 逐筆 {username, date, qty}，供趨勢圖統計
 let trendChart = null;
@@ -766,7 +807,7 @@ function processData() {
   if (!usageData || !addressData) return;
 
   /* Employee map: empId → {name, dept, division, group} */
-  const empMap = new Map();
+  empMap = new Map();
   for (let i = 3; i < addressData.length; i++) {
     const r = addressData[i];
     const id = (r[0] || '').trim();
@@ -830,7 +871,10 @@ function processData() {
     u.net   += net;
   }
 
-  /* Build results */
+  /* Seat 名單（小寫 login 集合 + 原始 login 對照） */
+  const seatLoginByKey = buildSeatLogins();
+
+  /* Build results（使用報表中有用量者） */
   results = [];
   for (const [, u] of uMap) {
     const emp = empMap.get(u.empId) || manualMap.get(u.empId);
@@ -843,8 +887,29 @@ function processData() {
       aic:   round2(u.aic),
       gross: round4(u.gross),
       net:   round4(u.net),
-      found: !!emp
+      found: !!emp,
+      seat:  seatLoginSet.has(u.username.toLowerCase())
     });
+  }
+
+  /* 併入 Seat 名單中、但使用報表沒有用量紀錄的使用者（用量 0） */
+  if (seatData) {
+    const haveUser = new Set(results.map(r => r.username.toLowerCase()));
+    for (const [key, login] of seatLoginByKey) {
+      if (haveUser.has(key)) continue;
+      const empId = login.replace(/^IISI-/i, '');
+      const emp   = empMap.get(empId) || manualMap.get(empId);
+      results.push({
+        username: login,
+        name:     emp ? emp.name     : '',
+        dept:     emp ? emp.dept     : '',
+        division: emp ? emp.division : '',
+        group:    emp ? emp.group    : '',
+        aic: 0, gross: 0, net: 0,
+        found: !!emp,
+        seat:  true
+      });
+    }
   }
 
   /* Populate dept filter */
@@ -857,6 +922,27 @@ function processData() {
   deptFilter.disabled = false;
 
   renderTable();
+}
+
+/* 解析 seat CSV 的 login 欄；回傳 Map<小寫login, 原始login> 並更新 seatLoginSet */
+function buildSeatLogins() {
+  seatLoginSet = new Set();
+  const map = new Map();
+  if (!seatData || seatData.length < 2) return map;
+
+  /* 找出 Login 欄位（容錯：預設第二欄） */
+  const hdr = seatData[0].map(h => (h || '').trim().toLowerCase().replace(/^"|"$/g, ''));
+  let iLogin = hdr.indexOf('login');
+  if (iLogin < 0) iLogin = 1;
+
+  for (let i = 1; i < seatData.length; i++) {
+    const login = (seatData[i][iLogin] || '').trim().replace(/^"|"$/g, '');
+    if (!login) continue;
+    const key = login.toLowerCase();
+    if (!map.has(key)) map.set(key, login);
+    seatLoginSet.add(key);
+  }
+  return map;
 }
 
 function round2(v) { return Math.round(v * 100)   / 100; }
@@ -889,9 +975,10 @@ function renderTable() {
   const totGross = filtered.reduce((s, r) => s + r.gross, 0);
   const totNet   = filtered.reduce((s, r) => s + r.net,   0);
   const nfCount  = filtered.filter(r => !r.found).length;
+  const activeCount = filtered.filter(r => r.aic > 0).length;
 
   /* Summary */
-  document.getElementById('statUsers').textContent = filtered.length.toLocaleString();
+  document.getElementById('statUsers').textContent = activeCount.toLocaleString();
   document.getElementById('statRows').textContent  = rawRowCount.toLocaleString();
   document.getElementById('statAic').textContent   = round2(totAic).toLocaleString();
   document.getElementById('statGross').textContent = '$' + fmt2(round4(totGross));
@@ -903,6 +990,19 @@ function renderTable() {
   } else {
     nfPill.style.display = 'none';
   }
+
+  /* Seat 使用者總數 */
+  const seatPill = document.getElementById('statSeatPill');
+  if (seatData && seatLoginSet.size) {
+    const seatInFilter = selectedDept
+      ? filtered.filter(r => r.seat).length
+      : seatLoginSet.size;
+    document.getElementById('statSeat').textContent = seatInFilter.toLocaleString();
+    seatPill.style.display = '';
+  } else {
+    seatPill.style.display = 'none';
+  }
+
   document.getElementById('summary').style.display = '';
 
   /* Filter indicator */
@@ -930,8 +1030,26 @@ function renderTable() {
     if (th.dataset.col === sortCol) th.classList.add(sortDir, 'active');
   });
 
+  /* 表格控制列：只顯示使用量為 0（僅在有 Seat 名單時提供） */
+  const tableControls = document.getElementById('tableControls');
+  const zeroInFilter  = filtered.filter(r => r.aic === 0).length;
+  if (seatData && seatLoginSet.size) {
+    const seatInFilter = filtered.filter(r => r.seat).length;
+    document.getElementById('tableSeatNote').innerHTML =
+      `Seat 使用者 <b>${seatInFilter.toLocaleString()}</b> 人` +
+      (zeroInFilter ? `　·　其中 <b>${zeroInFilter.toLocaleString()}</b> 人使用量為 0` : '');
+    tableControls.style.display = '';
+  } else {
+    onlyZero = false;
+    document.getElementById('onlyZeroFilter').checked = false;
+    tableControls.style.display = 'none';
+  }
+
+  /* 套用「只顯示使用量為 0」 */
+  const displayRows = onlyZero ? filtered.filter(r => r.aic === 0) : filtered;
+
   /* Rows */
-  document.getElementById('tableBody').innerHTML = filtered.map((r, i) => {
+  document.getElementById('tableBody').innerHTML = displayRows.map((r, i) => {
     let nameCell;
     if (r.found) {
       const isManual = manualMap.has(r.username.replace(/^IISI-/i, ''));
@@ -939,7 +1057,7 @@ function renderTable() {
     } else {
       nameCell = `<span class="not-found">${r.name || '(未對應)'}</span>`;
     }
-    return `<tr>
+    return `<tr class="${r.aic === 0 ? 'row-zero' : ''}">
       <td class="num">${i + 1}</td>
       <td>${esc(r.username)}</td>
       <td>${nameCell}</td>
@@ -952,12 +1070,15 @@ function renderTable() {
     </tr>`;
   }).join('');
 
-  /* Footer */
+  /* Footer（反映目前顯示的列） */
+  const fAic   = displayRows.reduce((s, r) => s + r.aic,   0);
+  const fGross = displayRows.reduce((s, r) => s + r.gross, 0);
+  const fNet   = displayRows.reduce((s, r) => s + r.net,   0);
   document.getElementById('tableFoot').innerHTML = `<tr>
-    <td colspan="6">合計</td>
-    <td class="num">${round2(totAic).toLocaleString()}</td>
-    <td class="num">$${fmt2(round4(totGross))}</td>
-    <td class="num">$${fmt2(round4(totNet))}</td>
+    <td colspan="6">合計（${displayRows.length.toLocaleString()} 人）</td>
+    <td class="num">${round2(fAic).toLocaleString()}</td>
+    <td class="num">$${fmt2(round4(fGross))}</td>
+    <td class="num">$${fmt2(round4(fNet))}</td>
   </tr>`;
 
   document.getElementById('viewTabs').style.display = '';
@@ -1006,7 +1127,15 @@ function renderChart() {
   const note = document.getElementById('chartNote');
 
   const seatInput = document.getElementById('seatInput');
-  if (!seatTouched) seatInput.value = getFilteredResults().length;
+  if (!seatTouched) {
+    if (seatData && seatLoginSet.size) {
+      seatInput.value = selectedDept
+        ? getFilteredResults().filter(r => r.seat).length
+        : seatLoginSet.size;
+    } else {
+      seatInput.value = getFilteredResults().filter(r => r.aic > 0).length;
+    }
+  }
   const seats    = parseFloat(seatInput.value) || 0;
   const aicQuota = parseFloat(document.getElementById('aicInput').value) || 0;
   const poolUsd  = round2(seats * aicQuota / AIC_PER_USD);
@@ -1382,6 +1511,12 @@ function renderDistChart() {
 
 document.getElementById('binSelect').addEventListener('change', renderDistChart);
 
+/* 只顯示使用量為 0 的使用者 */
+document.getElementById('onlyZeroFilter').addEventListener('change', function() {
+  onlyZero = this.checked;
+  if (results.length) renderTable();
+});
+
 /* ── Manual Map Modal ────────────────────────── */
 
 function parseMapInput(raw) {
@@ -1672,6 +1807,12 @@ setupZone('addressZone', 'addressFile', 'addressStatus', (rows, filename, raw) =
     localStorage.setItem(LS_ADDRESS_NAME, filename);
   } catch(e) { /* 空間不足時靜默略過 */ }
   processData();
+});
+
+setupZone('seatZone', 'seatFile', 'seatStatus', (rows) => {
+  seatData = rows;
+  buildSeatLogins();        // 更新 seatLoginSet
+  if (usageData && addressData) processData();   // 兩份必要檔已就緒 → 一併重算
 });
 
 /* ── 頁面載入時還原通訊錄 ────────────────────── */
