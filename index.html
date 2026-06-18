@@ -224,6 +224,22 @@ body {
   margin-bottom: 12px;
   line-height: 1.6;
 }
+.chart-summary {
+  display: inline-flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+  color: #334155;
+  padding-left: 18px;
+  border-left: 1px solid #e2e8f0;
+}
+.chart-summary .item { display: inline-flex; align-items: baseline; gap: 6px; }
+.chart-summary .item .label { color: #64748b; font-weight: 600; }
+.chart-summary .item b { font-variant-numeric: tabular-nums; }
+.chart-summary .ratio { color: #2563eb; }
+.chart-summary .buffer-ok { color: #16a34a; }
+.chart-summary .buffer-low { color: #f97316; }
+.chart-summary .buffer-over { color: #dc2626; }
 .chart-box {
   position: relative;
   height: 400px;
@@ -634,6 +650,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
         <input type="number" id="aicInput" min="0" step="100" value="3000">
       </label>
       <span class="pool-amount">總 Pool 使用金額：<b id="poolAmount">$0.00</b></span>
+      <span class="chart-summary" id="chartSummary" style="display:none;"></span>
     </div>
     <div class="chart-note" id="chartNote" style="display:none;"></div>
     <div class="chart-box">
@@ -1125,6 +1142,8 @@ document.getElementById('aicInput').addEventListener('input', renderChart);
 
 function renderChart() {
   const note = document.getElementById('chartNote');
+  const summary = document.getElementById('chartSummary');
+  summary.style.display = 'none';
 
   const seatInput = document.getElementById('seatInput');
   if (!seatTouched) {
@@ -1179,6 +1198,7 @@ function renderChart() {
   const monthEnd = new Date(last.getFullYear(), last.getMonth() + 1, 0);
   const forecast = new Array(actual.length).fill(null);
   let hasForecast = false;
+  let forecastEndUsd = cum / AIC_PER_USD;   // 預估月底累積金額（USD），無推估時即為實際值
   if (last < monthEnd) {
     hasForecast = true;
     const days = actual.length;
@@ -1193,6 +1213,7 @@ function renderChart() {
       actual.push(null);
       forecast.push(round2(fcum));
     }
+    forecastEndUsd = fcum;
     note.innerHTML =
       `⚠ 實際資料僅到 <b>${dayKey(last)}</b>（共 ${days} 天）。` +
       `虛線為依目前日平均用量 <b>$${fmt2(avg)}</b> 推估至 ${dayKey(monthEnd)}，` +
@@ -1200,6 +1221,25 @@ function renderChart() {
     note.style.display = '';
   } else {
     note.style.display = 'none';
+  }
+
+  /* 摘要：AIC 已使用 / Pool 總量、剩餘緩衝 %、預估緩衝 % */
+  const usedAic = cum;                       // 實際累積已使用（AIC）
+  const poolAic = seats * aicQuota;          // Pool 總量（AIC）
+  if (poolAic > 0) {
+    const bufClass  = b => b < 0 ? 'buffer-over' : b < 20 ? 'buffer-low' : 'buffer-ok';
+    const usedRatio = usedAic / poolAic * 100;
+    const buffer    = 100 - usedRatio;                                 // 剩餘緩衝 %（可能為負）
+    const fcBuffer  = 100 - forecastEndUsd / poolUsd * 100;            // 預估月底剩餘緩衝 %
+    summary.innerHTML =
+      `<span class="item"><span class="label">AIC 已使用 / Pool 總量</span>` +
+      `<b>${round2(usedAic).toLocaleString()} / ${round2(poolAic).toLocaleString()} AIC</b>` +
+      `<b class="ratio">(${usedRatio.toFixed(1)}%)</b></span>` +
+      `<span class="item"><span class="label">剩餘緩衝</span>` +
+      `<b class="${bufClass(buffer)}">${buffer.toFixed(1)}%</b></span>` +
+      `<span class="item"><span class="label">預估緩衝</span>` +
+      `<b class="${bufClass(fcBuffer)}">${fcBuffer.toFixed(1)}%</b></span>`;
+    summary.style.display = '';
   }
 
   const datasets = [{
