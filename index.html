@@ -1031,6 +1031,11 @@ function getFilteredResults() {
   return results.filter(r => r.dept === selectedDept);
 }
 
+/* 是否已取得 Copilot Seat 名單 */
+function hasSeatData() { return seatLoaded && seatLoginSet.size > 0; }
+/* 目前篩選下的 Seat 數：未篩選用 API 的 total_seats，篩選後用名單內筆數 */
+function seatCount(rows) { return selectedDept ? rows.filter(r => r.seat).length : totalSeats; }
+
 function renderTable() {
   sortResults();
 
@@ -1049,11 +1054,8 @@ function renderTable() {
   const statAicPct = document.getElementById('statAicPct');
   const aicQuota   = parseFloat(document.getElementById('aicInput').value) || 0;
   const usedAicTxt = round2(totAic).toLocaleString();
-  if (seatLoaded && seatLoginSet.size && aicQuota > 0) {
-    const seatInFilter = selectedDept
-      ? filtered.filter(r => r.seat).length
-      : totalSeats;
-    const quotaAic = seatInFilter * aicQuota;
+  if (hasSeatData() && aicQuota > 0) {
+    const quotaAic = seatCount(filtered) * aicQuota;
     const pct      = quotaAic > 0 ? Math.round(totAic / quotaAic * 100) : 0;
     statAicEl.innerHTML = `${usedAicTxt} <span class="stat-sub">/ ${quotaAic.toLocaleString()}</span>`;
     statAicPct.textContent = `(${pct}%)`;
@@ -1073,11 +1075,8 @@ function renderTable() {
 
   /* Seat 使用者總數（未篩選時以 API 的 total_seats 為準） */
   const seatPill = document.getElementById('statSeatPill');
-  if (seatLoaded && seatLoginSet.size) {
-    const seatInFilter = selectedDept
-      ? filtered.filter(r => r.seat).length
-      : totalSeats;
-    document.getElementById('statSeat').textContent = seatInFilter.toLocaleString();
+  if (hasSeatData()) {
+    document.getElementById('statSeat').textContent = seatCount(filtered).toLocaleString();
     seatPill.style.display = '';
   } else {
     seatPill.style.display = 'none';
@@ -1113,10 +1112,8 @@ function renderTable() {
   /* 表格控制列：只顯示使用量為 0（僅在有 Seat 名單時提供） */
   const tableControls = document.getElementById('tableControls');
   const zeroInFilter  = filtered.filter(r => r.aic === 0).length;
-  if (seatLoaded && seatLoginSet.size) {
-    const seatInFilter = selectedDept
-      ? filtered.filter(r => r.seat).length
-      : totalSeats;
+  if (hasSeatData()) {
+    const seatInFilter = seatCount(filtered);
     document.getElementById('tableSeatNote').innerHTML =
       (zeroInFilter
         ? `<b>${zeroInFilter.toLocaleString()}</b>/<b>${seatInFilter.toLocaleString()}</b> Seats 使用量為 0`
@@ -1214,13 +1211,8 @@ function renderChart() {
 
   const seatInput = document.getElementById('seatInput');
   if (!seatTouched) {
-    if (seatLoaded && seatLoginSet.size) {
-      seatInput.value = selectedDept
-        ? getFilteredResults().filter(r => r.seat).length
-        : totalSeats;
-    } else {
-      seatInput.value = getFilteredResults().filter(r => r.aic > 0).length;
-    }
+    const fres = getFilteredResults();
+    seatInput.value = hasSeatData() ? seatCount(fres) : fres.filter(r => r.aic > 0).length;
   }
   const seats    = parseFloat(seatInput.value) || 0;
   const aicQuota = parseFloat(document.getElementById('aicInput').value) || 0;
@@ -1774,8 +1766,8 @@ function buildSummaryCells(rows) {
 
   const cells = [`使用者: ${active.toLocaleString()} 人`];
 
-  if (seatLoaded && seatLoginSet.size) {
-    const seatCnt = selectedDept ? rows.filter(r => r.seat).length : totalSeats;
+  if (hasSeatData()) {
+    const seatCnt = seatCount(rows);
     cells.push(`Seats: ${seatCnt.toLocaleString()}`);
     if (aicQuota > 0) {
       const quota = seatCnt * aicQuota;
@@ -1808,7 +1800,7 @@ function fillSheet(ws, rows, summary) {
     };
     /* 左側項目由 A 欄起依序排列 */
     summary.left.forEach((txt, i) => setCell(i + 1, txt));
-    /* 資料日期固定置於最右 H 欄 */
+    /* 資料日期固定置於最右一欄 */
     if (summary.date) setCell(HDR_COLS.length, summary.date);
     /* 整列鋪上同色背景，維持一致 */
     for (let i = 1; i <= HDR_COLS.length; i++) summaryRow.getCell(i).fill = SUMMARY_FILL;
@@ -1929,7 +1921,7 @@ function setupZone(zoneId, inputId, statusId, onLoad) {
     reader.onload = e => {
       try {
         const rows = parseCSV(e.target.result);
-        onLoad(rows, file.name, e.target.result);
+        onLoad(rows);
         status.textContent = `✓ ${file.name}（${rows.length - 1} 筆）`;
         status.className   = 'zone-status ok';
         zone.classList.add('loaded');
@@ -1964,14 +1956,13 @@ setupZone('usageZone', 'usageFile', 'usageStatus', (rows) => {
 
 /* 取出 ExcelJS 儲存格的純文字（處理 richText / 超連結 / 日期 / 公式結果） */
 function cellText(cell) {
-  let v = cell ? cell.value : null;
+  const v = cell.value;
   if (v == null) return '';
   if (v instanceof Date) return fmtDate(v);
   if (typeof v === 'object') {
-    if (Array.isArray(v.richText)) return v.richText.map(t => t.text).join('');
-    if (v.text   != null) return String(v.text);
-    if (v.result != null) return v.result instanceof Date ? fmtDate(v.result) : String(v.result);
-    if (v.hyperlink) return String(v.hyperlink);
+    if (Array.isArray(v.richText)) return v.richText.map(t => t.text).join('');     // 富文字
+    if (v.text   != null) return String(v.text);                                    // 超連結 {text, hyperlink}
+    if (v.result != null) return v.result instanceof Date ? fmtDate(v.result) : String(v.result); // 公式結果
     return '';
   }
   return String(v);
