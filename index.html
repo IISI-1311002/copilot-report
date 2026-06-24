@@ -596,6 +596,119 @@ tbody tr.row-zero:hover td { color: #64748b; }
 }
 #tokenInput:focus { border-color: #2563eb; }
 #tokenInput.input-err { border-color: #dc2626; }
+
+/* ── Command Generator ──────────────────────── */
+#cmdContainer {
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.07);
+  padding: 18px 20px;
+}
+.cmd-section { display: flex; flex-direction: column; gap: 14px; }
+.cmd-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.cmd-title { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 4px; }
+.cmd-sub { font-size: 12.5px; color: #64748b; line-height: 1.6; max-width: 640px; }
+.cmd-sub code { background: #e2e8f0; border-radius: 3px; padding: 1px 5px; font-size: 11.5px; color: #0f172a; }
+.cmd-btn {
+  background: #2563eb; color: white; border: none;
+  padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: background .15s; flex-shrink: 0;
+}
+.cmd-btn:hover:not(:disabled) { background: #1d4ed8; }
+.cmd-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+.cmd-btn-danger { background: #dc2626; }
+.cmd-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+
+/* ── Reset confirm Modal ────────────────────── */
+#resetOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 9000;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 16px;
+  overflow-y: auto;
+}
+#resetOverlay.open { display: flex; }
+#resetDialog {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.28);
+  width: 620px;
+  max-width: 100%;
+  padding: 24px 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: dlgIn .15s ease;
+  margin: auto;
+}
+#resetDialog h2 { font-size: 15px; font-weight: 700; color: #b91c1c; display: flex; align-items: center; gap: 8px; }
+.reset-desc { font-size: 12.5px; color: #475569; line-height: 1.7; }
+.reset-desc code { background: #e2e8f0; border-radius: 3px; padding: 1px 5px; font-size: 11.5px; color: #0f172a; }
+.reset-dryrun-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #1e293b; color: #cbd5e1; padding: 7px 12px;
+  border-radius: 8px 8px 0 0; font-size: 12px; font-weight: 600;
+}
+#resetDryRun {
+  width: 100%; min-height: 140px; max-height: 280px; resize: vertical;
+  background: #0f172a; color: #e2e8f0;
+  border: none; border-radius: 0 0 8px 8px;
+  padding: 12px 14px; font-size: 12.5px; line-height: 1.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  outline: none; box-sizing: border-box;
+}
+#resetConfirmInput {
+  width: 100%; padding: 9px 12px;
+  border: 1.5px solid #e2e8f0; border-radius: 6px;
+  font-size: 13px; font-family: inherit; outline: none; color: #0f172a;
+  letter-spacing: 2px; transition: border-color .15s; box-sizing: border-box;
+}
+#resetConfirmInput:focus { border-color: #dc2626; }
+#resetConfirmInput.input-err { border-color: #dc2626; }
+.dlg-btn-danger {
+  background: #dc2626; color: white; border: none;
+  padding: 8px 18px; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.dlg-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.dlg-btn-danger:disabled { background: #f1a8a8; cursor: not-allowed; }
+.cmd-status {
+  font-size: 12.5px; border-radius: 6px; padding: 8px 12px; line-height: 1.6;
+  background: #f8fafc; border: 1px solid #e2e8f0; color: #475569;
+}
+.cmd-status.ok   { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+.cmd-status.err  { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.cmd-status.warn { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+.cmd-output-wrap { display: flex; flex-direction: column; }
+.cmd-output-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  background: #1e293b; color: #cbd5e1; padding: 8px 12px;
+  border-radius: 8px 8px 0 0; font-size: 12px; font-weight: 600;
+}
+.cmd-copy {
+  background: #334155; color: #e2e8f0; border: 1px solid #475569;
+  padding: 4px 12px; border-radius: 5px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: background .15s;
+}
+.cmd-copy:hover { background: #3d4f65; }
+#cmdOutput {
+  width: 100%; min-height: 220px; resize: vertical;
+  background: #0f172a; color: #e2e8f0;
+  border: none; border-radius: 0 0 8px 8px;
+  padding: 12px 14px; font-size: 12.5px; line-height: 1.7;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  outline: none; white-space: pre; overflow-x: auto;
+}
 </style>
 </head>
 <body>
@@ -679,6 +792,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
     <button class="tab-btn active" data-view="table">使用量明細</button>
     <button class="tab-btn" data-view="chart">累積趨勢圖</button>
     <button class="tab-btn" data-view="dist">人數常態分佈</button>
+    <button class="tab-btn" data-view="cmd" id="cmdTabBtn" style="display:none;">重置使用者上限</button>
   </div>
 
   <!-- Chart -->
@@ -743,6 +857,32 @@ tbody tr.row-zero:hover td { color: #64748b; }
         <span style="width:14px;height:0;display:inline-block;border-top:2px dashed #BA7517;"></span>中位數
       </span>
       <span style="margin-left:8px;color:#94a3b8;">· X 軸對數刻度</span>
+    </div>
+  </div>
+
+  <!-- Command Generator -->
+  <div id="cmdContainer" style="display:none;">
+    <div class="cmd-section">
+      <div class="cmd-head">
+        <div>
+          <div class="cmd-title">⚠️ 重置使用者上限</div>
+          <div class="cmd-sub">
+            透過 GitHub API 取得 <code>IISI-Group</code> 組織所有 Budget（自動分頁），
+            並刪除其中 <code>budget_scope</code> 為 <code>user</code> 的 Budget 設定，以重置使用者上限。<br>
+            <strong style="color:#b91c1c;">此為危險動作。</strong>點擊按鈕僅會進行 Dry Run，於對話框中列出將執行的指令但不會實際執行；
+            需於對話框輸入 <code>RESET</code> 確認後，才會真正呼叫 API 執行刪除。
+          </div>
+        </div>
+        <button class="cmd-btn cmd-btn-danger" id="genBudgetDeleteBtn">重置使用者上限</button>
+      </div>
+      <div class="cmd-status" id="cmdStatus" style="display:none;"></div>
+      <div class="cmd-output-wrap" id="cmdOutputWrap" style="display:none;">
+        <div class="cmd-output-bar">
+          <span id="cmdCount"></span>
+          <button class="cmd-copy" id="copyBudgetCmdBtn">複製全部</button>
+        </div>
+        <textarea id="cmdOutput" readonly spellcheck="false"></textarea>
+      </div>
     </div>
   </div>
 
@@ -819,6 +959,32 @@ tbody tr.row-zero:hover td { color: #64748b; }
       <button class="dlg-btn-cancel" id="tokenDelete" style="margin-right:auto;">刪除 Token</button>
       <button class="dlg-btn-cancel" id="tokenCancel">取消</button>
       <button class="dlg-btn-ok"     id="tokenOk">儲存並取得</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Reset User Budget Confirm Modal ──────── -->
+<div id="resetOverlay" role="dialog" aria-modal="true" aria-labelledby="resetTitle">
+  <div id="resetDialog">
+    <h2 id="resetTitle">⚠️ 危險動作：重置使用者上限</h2>
+    <div class="reset-desc">
+      以下為將透過 GitHub API <strong>實際執行</strong>的刪除指令（僅針對 <code>budget_scope</code> 為 <code>user</code> 的 Budget）。
+      目前為 <strong>Dry Run</strong> 預覽，<u>尚未執行</u>。<br>
+      如確認要執行，請在下方輸入框輸入 <code>RESET</code> 後再點選「確認執行」。
+    </div>
+    <div class="cmd-output-wrap">
+      <div class="reset-dryrun-bar">
+        <span id="resetDryRunCount"></span>
+      </div>
+      <textarea id="resetDryRun" readonly spellcheck="false"></textarea>
+    </div>
+    <div>
+      <input type="text" id="resetConfirmInput" placeholder="請輸入 RESET 以確認" autocomplete="off" spellcheck="false">
+    </div>
+    <div class="cmd-status" id="resetStatus" style="display:none;"></div>
+    <div class="dlg-actions">
+      <button class="dlg-btn-cancel" id="resetCancel">取消</button>
+      <button class="dlg-btn-danger" id="resetConfirm" disabled>確認執行</button>
     </div>
   </div>
 </div>
@@ -1183,6 +1349,7 @@ function setView(view) {
   document.getElementById('tableContainer').style.display = view === 'table' ? '' : 'none';
   document.getElementById('chartContainer').style.display = view === 'chart' ? '' : 'none';
   document.getElementById('distContainer').style.display  = view === 'dist'  ? '' : 'none';
+  document.getElementById('cmdContainer').style.display   = view === 'cmd'   ? '' : 'none';
 }
 
 document.querySelectorAll('#viewTabs .tab-btn').forEach(btn =>
@@ -2092,6 +2259,8 @@ document.getElementById('tokenDelete').addEventListener('click', () => {
   seatZone.classList.remove('loaded');
   seatStatusEl.textContent = '點擊設定 Token';
   seatStatusEl.className = 'zone-status';
+  budgetAccessible = true;   // 重設權限狀態，待下次設定 Token 重新探測
+  updateCmdTabVisibility();
   closeTokenDialog();
   if (usageData && addressLoaded) processData();
 });
@@ -2106,13 +2275,16 @@ document.getElementById('tokenOk').addEventListener('click', async () => {
   }
   try { localStorage.setItem(LS_TOKEN_KEY, token); } catch(e) { /* 空間不足時靜默略過 */ }
   closeTokenDialog();
+  probeBudgetAccess(token);   // 探測 Budget 權限後再決定分頁顯示
   await loadSeats(token);
 });
 
-/* 透過 GitHub API 取得所有 Copilot Seat（自動分頁） */
+/* 透過 GitHub API 取得所有 Copilot Seat。
+   此 API 採標準頁碼分頁（page / per_page）並回傳 total_seats，以累計筆數達 total
+   為主要停止條件；另加頁數上限防止 total 異常時無限迴圈。 */
 async function fetchSeats(token) {
-  let page = 1, all = [], total = 0;
-  while (true) {
+  let all = [], total = 0;
+  for (let page = 1; page <= 50; page++) {   // 上限 50 頁（5000 Seat），防止意外無限迴圈
     const res = await fetch(
       `https://api.github.com/orgs/${GH_ORG}/copilot/billing/seats?per_page=100&page=${page}`,
       {
@@ -2132,8 +2304,8 @@ async function fetchSeats(token) {
     total       = data.total_seats || 0;          // total_seats 為總 Seat
     const seats = data.seats || [];
     all.push(...seats);
-    if (seats.length === 0 || all.length >= total) break;
-    page++;
+    /* 本頁無資料、回傳數不足一頁、或已累計達總數 → 停止 */
+    if (seats.length === 0 || seats.length < 100 || all.length >= total) break;
   }
   return { total, seats: all };
 }
@@ -2164,6 +2336,265 @@ async function loadSeats(token) {
 (function restoreSeats() {
   const token = localStorage.getItem(LS_TOKEN_KEY);
   if (token) loadSeats(token);
+})();
+
+/* ── 重置使用者上限分頁 ───────────────────────── */
+/* 是否已輸入 Token（分頁僅在有 Token 時出現） */
+function hasToken() { return !!localStorage.getItem(LS_TOKEN_KEY); }
+
+/* 是否具備使用 Budget API 的權限。Budget API 回傳 404 視為無權限 → 隱藏分頁。 */
+let budgetAccessible = true;
+
+/* 探測 Budget API 權限：404 → 無權限。其餘錯誤（如網路）不視為無權限。 */
+async function probeBudgetAccess(token) {
+  try {
+    const res = await fetch(
+      `https://api.github.com/organizations/${GH_ORG}/settings/billing/budgets?page=1`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': GH_API_VER
+        }
+      }
+    );
+    budgetAccessible = res.status !== 404;
+  } catch (e) {
+    /* 非權限錯誤：維持原狀，不因此隱藏分頁 */
+  }
+  updateCmdTabVisibility();
+}
+
+/* 依 Token 與權限切換「重置使用者上限」分頁的顯示 */
+function updateCmdTabVisibility() {
+  const show = hasToken() && budgetAccessible;
+  document.getElementById('cmdTabBtn').style.display = show ? '' : 'none';
+  /* 即使尚未載入報表，只要有 Token 且有權限也顯示分頁列，讓使用者能執行重置 */
+  if (show) document.getElementById('viewTabs').style.display = '';
+  if (!show && currentView === 'cmd') setView('table');
+}
+
+/* 透過 GitHub API 取得所有 Budget。
+   此 API 以 page 參數翻頁，依 page_info.has_next_page 判斷是否還有下一頁。 */
+async function fetchAllBudgets(token) {
+  const byId = new Map();   // 以 id 去重，避免重複頁造成的累加
+  for (let page = 1; page <= 50; page++) {   // 上限 50 頁，防止意外無限迴圈
+    const res = await fetch(
+      `https://api.github.com/organizations/${GH_ORG}/settings/billing/budgets?page=${page}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': GH_API_VER
+        }
+      }
+    );
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j.message) msg += `：${j.message}`; } catch(e) {}
+      throw new Error(msg);
+    }
+    const data    = await res.json();
+    const budgets = Array.isArray(data) ? data : (data.budgets || []);
+
+    let added = 0;
+    for (const b of budgets) {
+      if (b && b.id && !byId.has(b.id)) { byId.set(b.id, b); added++; }
+    }
+
+    const pi      = data.page_info || {};
+    const hasNext = pi.has_next_page || data.has_next_page || false;
+
+    /* 沒有下一頁、本頁無資料、或本頁未新增任何資料 → 停止 */
+    if (!hasNext || budgets.length === 0 || added === 0) break;
+  }
+  return [...byId.values()];
+}
+
+/* 透過 GitHub API 刪除單一 Budget（實際呼叫，非 gh CLI）。 */
+async function deleteBudget(token, id) {
+  const res = await fetch(
+    `https://api.github.com/organizations/${GH_ORG}/settings/billing/budgets/${id}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GH_API_VER
+      }
+    }
+  );
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); if (j.message) msg += `：${j.message}`; } catch(e) {}
+    throw new Error(msg);
+  }
+}
+
+/* 待確認重置的使用者 Budget 清單（Dry Run 與確認執行之間暫存） */
+let pendingResetBudgets = [];
+
+/* 點擊「重置使用者上限」：僅取得清單並開啟 Dry Run 確認對話框，不實際執行。 */
+document.getElementById('genBudgetDeleteBtn').addEventListener('click', async () => {
+  const token = localStorage.getItem(LS_TOKEN_KEY);
+  const status     = document.getElementById('cmdStatus');
+  const outputWrap = document.getElementById('cmdOutputWrap');
+  const btn        = document.getElementById('genBudgetDeleteBtn');
+
+  if (!token) {
+    status.style.display = '';
+    status.className = 'cmd-status err';
+    status.textContent = '✗ 尚未設定 Token，請先於「Seats」區塊設定 GitHub Token。';
+    outputWrap.style.display = 'none';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '取得中…';
+  status.style.display = '';
+  status.className = 'cmd-status';
+  status.textContent = '正在取得 Budget 清單…';
+
+  try {
+    const budgets = await fetchAllBudgets(token);
+    /* 僅針對 budget_scope 為 user 的 Budget */
+    const userBudgets = budgets.filter(b => b && b.id && b.budget_scope === 'user');
+
+    if (!userBudgets.length) {
+      status.className = 'cmd-status warn';
+      status.textContent = '⚠ 沒有任何 budget_scope 為 user 的 Budget，無需重置。';
+      outputWrap.style.display = 'none';
+      return;
+    }
+
+    pendingResetBudgets = userBudgets;
+    openResetModal(userBudgets);
+    status.style.display = 'none';
+  } catch (err) {
+    status.className = 'cmd-status err';
+    status.textContent = `✗ ${err.message}`;
+    outputWrap.style.display = 'none';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '重置使用者上限';
+  }
+});
+
+/* ── 重置確認對話框 ──────────────────────────── */
+const resetOverlay      = document.getElementById('resetOverlay');
+const resetConfirmInput = document.getElementById('resetConfirmInput');
+const resetConfirmBtn   = document.getElementById('resetConfirm');
+const resetStatusEl     = document.getElementById('resetStatus');
+
+/* 將每筆 user Budget 轉成將實際執行的 DELETE 指令字串 */
+function budgetDeleteCmd(id) {
+  return `DELETE https://api.github.com/organizations/${GH_ORG}/settings/billing/budgets/${id}`;
+}
+
+function openResetModal(userBudgets) {
+  const lines = userBudgets.map(b => budgetDeleteCmd(b.id)).join('\n');
+  document.getElementById('resetDryRun').value = lines;
+  document.getElementById('resetDryRunCount').textContent =
+    `Dry Run：共 ${userBudgets.length} 筆 user Budget 將被刪除`;
+  resetConfirmInput.value = '';
+  resetConfirmInput.classList.remove('input-err');
+  resetConfirmBtn.disabled = true;
+  resetStatusEl.style.display = 'none';
+  resetOverlay.classList.add('open');
+  setTimeout(() => resetConfirmInput.focus(), 50);
+}
+
+function closeResetModal() {
+  resetOverlay.classList.remove('open');
+}
+
+/* 僅當輸入恰為 RESET 時才啟用「確認執行」 */
+resetConfirmInput.addEventListener('input', () => {
+  resetConfirmBtn.disabled = resetConfirmInput.value.trim() !== 'RESET';
+});
+
+document.getElementById('resetCancel').addEventListener('click', closeResetModal);
+resetOverlay.addEventListener('click', (e) => { if (e.target === resetOverlay) closeResetModal(); });
+
+/* 確認執行：實際逐筆呼叫 DELETE API */
+resetConfirmBtn.addEventListener('click', async () => {
+  if (resetConfirmInput.value.trim() !== 'RESET') {
+    resetConfirmInput.classList.add('input-err');
+    return;
+  }
+  const token = localStorage.getItem(LS_TOKEN_KEY);
+  if (!token) {
+    resetStatusEl.style.display = '';
+    resetStatusEl.className = 'cmd-status err';
+    resetStatusEl.textContent = '✗ 尚未設定 Token。';
+    return;
+  }
+
+  const budgets = pendingResetBudgets.slice();
+  resetConfirmBtn.disabled = true;
+  resetConfirmInput.disabled = true;
+  document.getElementById('resetCancel').disabled = true;
+
+  const resultLines = [];
+  let ok = 0, fail = 0;
+  for (let i = 0; i < budgets.length; i++) {
+    const b = budgets[i];
+    resetStatusEl.style.display = '';
+    resetStatusEl.className = 'cmd-status';
+    resetStatusEl.textContent = `執行中…（${i + 1}/${budgets.length}）`;
+    try {
+      await deleteBudget(token, b.id);
+      ok++;
+      resultLines.push(`✓ DELETE budgets/${b.id}`);
+    } catch (err) {
+      fail++;
+      resultLines.push(`✗ DELETE budgets/${b.id} — ${err.message}`);
+    }
+  }
+
+  resetStatusEl.className = fail ? 'cmd-status err' : 'cmd-status ok';
+  resetStatusEl.textContent = fail
+    ? `完成：成功 ${ok} 筆、失敗 ${fail} 筆。`
+    : `✓ 已重置 ${ok} 筆使用者上限。`;
+
+  /* 同步將執行結果顯示於分頁輸出區 */
+  const cmdStatus  = document.getElementById('cmdStatus');
+  const outputWrap = document.getElementById('cmdOutputWrap');
+  document.getElementById('cmdOutput').value = resultLines.join('\n');
+  document.getElementById('cmdCount').textContent =
+    `共 ${budgets.length} 筆 · 成功 ${ok} · 失敗 ${fail}`;
+  outputWrap.style.display = '';
+  cmdStatus.style.display = '';
+  cmdStatus.className = fail ? 'cmd-status err' : 'cmd-status ok';
+  cmdStatus.textContent = fail
+    ? `重置完成，但有 ${fail} 筆失敗。`
+    : `✓ 已重置 ${ok} 筆使用者上限。`;
+
+  pendingResetBudgets = [];
+  resetConfirmInput.disabled = false;
+  document.getElementById('resetCancel').disabled = false;
+  setTimeout(closeResetModal, 1200);
+});
+
+document.getElementById('copyBudgetCmdBtn').addEventListener('click', async () => {
+  const ta  = document.getElementById('cmdOutput');
+  const btn = document.getElementById('copyBudgetCmdBtn');
+  const orig = btn.textContent;
+  try {
+    await navigator.clipboard.writeText(ta.value);
+  } catch (e) {
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+  }
+  btn.textContent = '✓ 已複製';
+  setTimeout(() => { btn.textContent = orig; }, 1500);
+});
+
+/* 初始化分頁顯示狀態；若已有 Token 則探測 Budget 權限（404 → 隱藏分頁） */
+updateCmdTabVisibility();
+(function initBudgetAccess() {
+  const token = localStorage.getItem(LS_TOKEN_KEY);
+  if (token) probeBudgetAccess(token);
 })();
 
 /* ── 頁面載入時還原服務帳號申請表（快取的 empMap）─ */
