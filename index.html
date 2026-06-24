@@ -161,6 +161,7 @@ body {
 }
 .stat-pill { display: flex; align-items: baseline; gap: 4px; }
 .stat-num  { font-size: 18px; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums; }
+.stat-sub  { font-size: 13px; font-weight: 400; color: #94a3b8; font-variant-numeric: tabular-nums; }
 .stat-warn { color: #ea580c; }
 .stat-num.stat-warn { color: #ea580c; }
 
@@ -554,6 +555,47 @@ tbody tr.row-zero:hover td { color: #64748b; }
   margin-left: 4px;
   vertical-align: middle;
 }
+
+/* ── Token Modal ────────────────────────────── */
+#tokenOverlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 9000;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 80px 16px;
+  overflow-y: auto;
+}
+#tokenOverlay.open { display: flex; }
+#tokenDialog {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 40px rgba(0,0,0,.28);
+  width: 480px;
+  max-width: 100%;
+  padding: 24px 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: dlgIn .15s ease;
+  margin: auto;
+}
+#tokenDialog h2 { font-size: 15px; font-weight: 700; color: #0f172a; }
+#tokenInput {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  color: #0f172a;
+  transition: border-color .15s;
+}
+#tokenInput:focus { border-color: #2563eb; }
+#tokenInput.input-err { border-color: #dc2626; }
 </style>
 </head>
 <body>
@@ -584,11 +626,9 @@ tbody tr.row-zero:hover td { color: #64748b; }
       <span class="zone-status" id="addressStatus">拖曳或點擊上傳</span>
       <span class="zone-drag">放開以載入</span>
     </div>
-    <div class="drop-zone" id="seatZone" tabindex="0" role="button" aria-label="上傳 Seat 使用者 CSV（選填）">
-      <input type="file" accept=".csv" id="seatFile" hidden>
-      <span class="zone-label">Seat CSV<span style="font-weight:400;color:#94a3b8;">（選填）</span></span>
-      <span class="zone-status" id="seatStatus">拖曳或點擊上傳</span>
-      <span class="zone-drag">放開以載入</span>
+    <div class="drop-zone" id="seatZone" tabindex="0" role="button" aria-label="連線 GitHub Copilot 取得 Seat 資料（選填）">
+      <span class="zone-label">Seats<span style="font-weight:400;color:#94a3b8;">（API · 選填）</span></span>
+      <span class="zone-status" id="seatStatus">點擊設定 Token</span>
     </div>
   </div>
 
@@ -596,27 +636,28 @@ tbody tr.row-zero:hover td { color: #64748b; }
   <div id="summary" style="display:none;">
     <div class="stat-pill">
       <span class="stat-num" id="statUsers">0</span>
-      <span>位使用者</span>
+      <span>人</span>
     </div>
     <div class="stat-pill" id="statSeatPill" style="display:none;">
       <span class="stat-num" id="statSeat">0</span>
-      <span>位 Seat 使用者</span>
+      <span>Seats</span>
     </div>
     <div class="stat-pill">
       <span class="stat-num" id="statRows">0</span>
-      <span>筆記錄</span>
+      <span>筆</span>
     </div>
     <div class="stat-pill">
       <span class="stat-num" id="statAic">0</span>
-      <span>總 AIC 用量</span>
+      <span>AI Credits</span>
+      <span class="stat-sub" id="statAicPct"></span>
     </div>
     <div class="stat-pill">
       <span class="stat-num" id="statGross">$0</span>
-      <span>總費用</span>
+      <span>USD</span>
     </div>
     <div class="stat-pill">
       <span class="stat-num" id="statNet">$0</span>
-      <span>總超額費用</span>
+      <span>USD 超額費用</span>
     </div>
     <div class="stat-pill" id="statNotFoundPill" style="display:none;">
       <span class="stat-num stat-warn" id="statNotFound">0</span>
@@ -760,6 +801,27 @@ tbody tr.row-zero:hover td { color: #64748b; }
   </div>
 </div>
 
+<!-- ── GitHub Token Modal ───────────────────── -->
+<div id="tokenOverlay" role="dialog" aria-modal="true" aria-labelledby="tokenTitle">
+  <div id="tokenDialog">
+    <h2 id="tokenTitle">🔑 GitHub Copilot Token</h2>
+    <div class="dlg-desc">
+      輸入具備 <code>manage_billing:copilot</code>（或 <code>read:org</code>）權限的 Personal Access Token，
+      系統將透過 GitHub API 取得 <code>IISI-Group</code> 組織的 Copilot Seat 資料。<br>
+      Token 僅儲存於本機瀏覽器 <code>localStorage</code>，不會上傳至任何伺服器。
+    </div>
+    <div class="dlg-row-input">
+      <input type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxxxxxx" autocomplete="off" spellcheck="false">
+      <span class="dlg-row-hint" id="tokenHint">Token 將儲存於本機 localStorage</span>
+    </div>
+    <div class="dlg-actions">
+      <button class="dlg-btn-cancel" id="tokenDelete" style="margin-right:auto;">刪除 Token</button>
+      <button class="dlg-btn-cancel" id="tokenCancel">取消</button>
+      <button class="dlg-btn-ok"     id="tokenOk">儲存並取得</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Distribution tooltip ─────────────────── -->
 <div id="distTooltip">
   <div class="tt-range" id="ttRange"></div>
@@ -775,7 +837,9 @@ tbody tr.row-zero:hover td { color: #64748b; }
 /* ── State ───────────────────────────────────── */
 let usageData   = null;
 let addressData = null;
-let seatData     = null;     // Seat CSV（選填）
+let seatLogins   = [];        // GitHub API 取得的 seat login 陣列
+let totalSeats   = 0;         // Response Schema 的 total_seats（總 Seat）
+let seatLoaded   = false;     // 是否已成功取得 Copilot Seat 資料
 let seatLoginSet = new Set(); // 全部 seat login（小寫）
 let results      = [];
 let empMap       = new Map();  // empId → {name, dept, division, group}
@@ -910,7 +974,7 @@ function processData() {
   }
 
   /* 併入 Seat 名單中、但使用報表沒有用量紀錄的使用者（用量 0） */
-  if (seatData) {
+  if (seatLoaded) {
     const haveUser = new Set(results.map(r => r.username.toLowerCase()));
     for (const [key, login] of seatLoginByKey) {
       if (haveUser.has(key)) continue;
@@ -941,22 +1005,15 @@ function processData() {
   renderTable();
 }
 
-/* 解析 seat CSV 的 login 欄；回傳 Map<小寫login, 原始login> 並更新 seatLoginSet */
+/* 由 seatLogins 建立 Map<小寫login, 原始login> 並更新 seatLoginSet */
 function buildSeatLogins() {
   seatLoginSet = new Set();
   const map = new Map();
-  if (!seatData || seatData.length < 2) return map;
-
-  /* 找出 Login 欄位（容錯：預設第二欄） */
-  const hdr = seatData[0].map(h => (h || '').trim().toLowerCase().replace(/^"|"$/g, ''));
-  let iLogin = hdr.indexOf('login');
-  if (iLogin < 0) iLogin = 1;
-
-  for (let i = 1; i < seatData.length; i++) {
-    const login = (seatData[i][iLogin] || '').trim().replace(/^"|"$/g, '');
-    if (!login) continue;
-    const key = login.toLowerCase();
-    if (!map.has(key)) map.set(key, login);
+  for (const login of seatLogins) {
+    const l = (login || '').trim();
+    if (!l) continue;
+    const key = l.toLowerCase();
+    if (!map.has(key)) map.set(key, l);
     seatLoginSet.add(key);
   }
   return map;
@@ -997,7 +1054,22 @@ function renderTable() {
   /* Summary */
   document.getElementById('statUsers').textContent = activeCount.toLocaleString();
   document.getElementById('statRows').textContent  = rawRowCount.toLocaleString();
-  document.getElementById('statAic').textContent   = round2(totAic).toLocaleString();
+  const statAicEl  = document.getElementById('statAic');
+  const statAicPct = document.getElementById('statAicPct');
+  const aicQuota   = parseFloat(document.getElementById('aicInput').value) || 0;
+  const usedAicTxt = round2(totAic).toLocaleString();
+  if (seatLoaded && seatLoginSet.size && aicQuota > 0) {
+    const seatInFilter = selectedDept
+      ? filtered.filter(r => r.seat).length
+      : totalSeats;
+    const quotaAic = seatInFilter * aicQuota;
+    const pct      = quotaAic > 0 ? Math.round(totAic / quotaAic * 100) : 0;
+    statAicEl.innerHTML = `${usedAicTxt} <span class="stat-sub">/ ${quotaAic.toLocaleString()}</span>`;
+    statAicPct.textContent = `(${pct}%)`;
+  } else {
+    statAicEl.textContent  = usedAicTxt;
+    statAicPct.textContent = '';
+  }
   document.getElementById('statGross').textContent = '$' + fmt2(round4(totGross));
   document.getElementById('statNet').textContent   = '$' + fmt2(round4(totNet));
   const nfPill = document.getElementById('statNotFoundPill');
@@ -1008,12 +1080,12 @@ function renderTable() {
     nfPill.style.display = 'none';
   }
 
-  /* Seat 使用者總數 */
+  /* Seat 使用者總數（未篩選時以 API 的 total_seats 為準） */
   const seatPill = document.getElementById('statSeatPill');
-  if (seatData && seatLoginSet.size) {
+  if (seatLoaded && seatLoginSet.size) {
     const seatInFilter = selectedDept
       ? filtered.filter(r => r.seat).length
-      : seatLoginSet.size;
+      : totalSeats;
     document.getElementById('statSeat').textContent = seatInFilter.toLocaleString();
     seatPill.style.display = '';
   } else {
@@ -1050,11 +1122,14 @@ function renderTable() {
   /* 表格控制列：只顯示使用量為 0（僅在有 Seat 名單時提供） */
   const tableControls = document.getElementById('tableControls');
   const zeroInFilter  = filtered.filter(r => r.aic === 0).length;
-  if (seatData && seatLoginSet.size) {
-    const seatInFilter = filtered.filter(r => r.seat).length;
+  if (seatLoaded && seatLoginSet.size) {
+    const seatInFilter = selectedDept
+      ? filtered.filter(r => r.seat).length
+      : totalSeats;
     document.getElementById('tableSeatNote').innerHTML =
-      `Seat 使用者 <b>${seatInFilter.toLocaleString()}</b> 人` +
-      (zeroInFilter ? `　·　其中 <b>${zeroInFilter.toLocaleString()}</b> 人使用量為 0` : '');
+      (zeroInFilter
+        ? `<b>${zeroInFilter.toLocaleString()}</b>/<b>${seatInFilter.toLocaleString()}</b> Seats 使用量為 0`
+        : `<b>${seatInFilter.toLocaleString()}</b> Seats`);
     tableControls.style.display = '';
   } else {
     onlyZero = false;
@@ -1147,10 +1222,10 @@ function renderChart() {
 
   const seatInput = document.getElementById('seatInput');
   if (!seatTouched) {
-    if (seatData && seatLoginSet.size) {
+    if (seatLoaded && seatLoginSet.size) {
       seatInput.value = selectedDept
         ? getFilteredResults().filter(r => r.seat).length
-        : seatLoginSet.size;
+        : totalSeats;
     } else {
       seatInput.value = getFilteredResults().filter(r => r.aic > 0).length;
     }
@@ -1677,8 +1752,9 @@ document.getElementById('manualMapOverlay').addEventListener('click', function(e
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.getElementById('manualMapOverlay').classList.contains('open'))
-    closeManualMapDialog();
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('manualMapOverlay').classList.contains('open')) closeManualMapDialog();
+  if (document.getElementById('tokenOverlay').classList.contains('open')) closeTokenDialog();
 });
 
 /* ── Export XLSX (ExcelJS) ───────────────────── */
@@ -1697,19 +1773,68 @@ function safeSheetName(name) {
   return (name || '未分類').replace(/[\\\/\?\*\[\]:]/g, '_').slice(0, 31);
 }
 
-function fillSheet(ws, rows) {
-  ws.columns = HDR_COLS.map(c => ({ key: c.key, header: c.header, width: c.width }));
+/* 依目前資料組出摘要項目陣列（每項各佔一格，對應畫面上的摘要列） */
+function buildSummaryCells(rows) {
+  const totAic   = rows.reduce((s, r) => s + r.aic, 0);
+  const active   = rows.filter(r => r.aic > 0).length;
+  const aicQuota = parseFloat(document.getElementById('aicInput').value) || 0;
 
-  /* 表頭樣式：淡灰底色 */
-  ws.getRow(1).eachCell(cell => {
+  const cells = [`使用者: ${active.toLocaleString()} 人`];
+
+  if (seatLoaded && seatLoginSet.size) {
+    const seatCnt = selectedDept ? rows.filter(r => r.seat).length : totalSeats;
+    cells.push(`Seats: ${seatCnt.toLocaleString()}`);
+    if (aicQuota > 0) {
+      const quota = seatCnt * aicQuota;
+      const pct   = quota > 0 ? Math.round(totAic / quota * 100) : 0;
+      cells.push(`AI Credits ${round2(totAic).toLocaleString()} / ${quota.toLocaleString()} (${pct}%)`);
+    } else {
+      cells.push(`AI Credits ${round2(totAic).toLocaleString()}`);
+    }
+  } else {
+    cells.push(`AI Credits ${round2(totAic).toLocaleString()}`);
+  }
+
+  return { left: cells, date: latestDate ? `資料日期 ${latestDate}` : '' };
+}
+
+function fillSheet(ws, rows, summary) {
+  ws.columns = HDR_COLS.map(c => ({ key: c.key, width: c.width }));
+
+  const off = summary ? 1 : 0;
+
+  /* 摘要列（選用）：每項摘要各佔一格，背景使用深色與表頭區隔 */
+  if (off) {
+    const summaryRow = ws.getRow(1);
+    const SUMMARY_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
+    const setCell = (col, txt) => {
+      const cell = summaryRow.getCell(col);
+      cell.value     = txt;
+      cell.font      = { bold: true, color: { argb: 'FFFFFFFF' } };
+      cell.alignment = { vertical: 'middle', horizontal: 'left' };
+    };
+    /* 左側項目由 A 欄起依序排列 */
+    summary.left.forEach((txt, i) => setCell(i + 1, txt));
+    /* 資料日期固定置於最右 H 欄 */
+    if (summary.date) setCell(HDR_COLS.length, summary.date);
+    /* 整列鋪上同色背景，維持一致 */
+    for (let i = 1; i <= HDR_COLS.length; i++) summaryRow.getCell(i).fill = SUMMARY_FILL;
+    summaryRow.height = 24;
+  }
+
+  /* 表頭：手動寫入（位於摘要列之後）+ 淡灰底色 */
+  const headerRowNum = 1 + off;
+  const headerRow = ws.getRow(headerRowNum);
+  HDR_COLS.forEach((c, i) => { headerRow.getCell(i + 1).value = c.header; });
+  headerRow.eachCell(cell => {
     cell.fill   = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE2E8F0' } };
     cell.font   = { bold: true };
     cell.border = { bottom: { style: 'thin', color: { argb: 'FFCBD5E1' } } };
   });
-  ws.getRow(1).height = 28;
+  headerRow.height = 28;
 
   /* AutoFilter */
-  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: HDR_COLS.length } };
+  ws.autoFilter = { from: { row: headerRowNum, column: 1 }, to: { row: headerRowNum, column: HDR_COLS.length } };
 
   /* 資料列 */
   rows.forEach(r => ws.addRow({
@@ -1719,8 +1844,8 @@ function fillSheet(ws, rows) {
   }));
 
   /* 總計列：使用公式 */
-  const dataStart = 2;                        // 資料從第 2 列開始
-  const dataEnd   = rows.length + 1;          // 最後一筆資料列號
+  const dataStart = headerRowNum + 1;            // 資料起始列
+  const dataEnd   = rows.length + headerRowNum;  // 最後一筆資料列號
   const totalRowNum = dataEnd + 1;
   const colLetter = col => ws.getColumn(col).letter;
 
@@ -1762,12 +1887,14 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
     const wb      = new ExcelJS.Workbook();
     const allData = getFilteredResults();
 
+    const summary = buildSummaryCells(allData);
+
     if (selectedDept) {
       /* 已選部門：單一 tab */
-      fillSheet(wb.addWorksheet(safeSheetName(selectedDept)), allData);
+      fillSheet(wb.addWorksheet(safeSheetName(selectedDept)), allData, summary);
     } else {
       /* 全部模式：全部 tab + 各部門 tab */
-      fillSheet(wb.addWorksheet('全部'), allData);
+      fillSheet(wb.addWorksheet('全部'), allData, summary);
 
       const depts = [...new Set(allData.map(r => r.dept).filter(Boolean))].sort();
       for (const dept of depts) {
@@ -1849,11 +1976,121 @@ setupZone('addressZone', 'addressFile', 'addressStatus', (rows, filename, raw) =
   processData();
 });
 
-setupZone('seatZone', 'seatFile', 'seatStatus', (rows) => {
-  seatData = rows;
-  buildSeatLogins();        // 更新 seatLoginSet
-  if (usageData && addressData) processData();   // 兩份必要檔已就緒 → 一併重算
+/* ── GitHub Copilot Seat API ─────────────────── */
+const LS_TOKEN_KEY = 'copilot_gh_token';
+const GH_ORG       = 'IISI-Group';
+const GH_API_VER   = '2026-03-10';
+
+const seatZone     = document.getElementById('seatZone');
+const seatStatusEl = document.getElementById('seatStatus');
+const tokenOverlay = document.getElementById('tokenOverlay');
+const tokenInput   = document.getElementById('tokenInput');
+const tokenHint    = document.getElementById('tokenHint');
+
+function openTokenDialog() {
+  const saved = localStorage.getItem(LS_TOKEN_KEY) || '';
+  tokenInput.value = saved;                       // localStorage 有 token 則自動帶入
+  tokenInput.classList.remove('input-err');
+  tokenHint.textContent = saved
+    ? '已儲存 Token，可編輯後重新取得或刪除'
+    : 'Token 將儲存於本機 localStorage';
+  tokenHint.classList.remove('err-msg');
+  document.getElementById('tokenDelete').style.display = saved ? '' : 'none';
+  tokenOverlay.classList.add('open');
+  tokenInput.focus();
+  tokenInput.select();
+}
+function closeTokenDialog() { tokenOverlay.classList.remove('open'); }
+
+seatZone.addEventListener('click', openTokenDialog);
+seatZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openTokenDialog(); } });
+
+document.getElementById('tokenCancel').addEventListener('click', closeTokenDialog);
+tokenOverlay.addEventListener('click', e => { if (e.target === tokenOverlay) closeTokenDialog(); });
+tokenInput.addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('tokenOk').click(); });
+
+document.getElementById('tokenDelete').addEventListener('click', () => {
+  localStorage.removeItem(LS_TOKEN_KEY);
+  seatLogins = [];
+  totalSeats = 0;
+  seatLoaded = false;
+  buildSeatLogins();
+  seatZone.classList.remove('loaded');
+  seatStatusEl.textContent = '點擊設定 Token';
+  seatStatusEl.className = 'zone-status';
+  closeTokenDialog();
+  if (usageData && addressData) processData();
 });
+
+document.getElementById('tokenOk').addEventListener('click', async () => {
+  const token = tokenInput.value.trim();
+  if (!token) {
+    tokenInput.classList.add('input-err');
+    tokenHint.textContent = '⚠ 請輸入 Token';
+    tokenHint.classList.add('err-msg');
+    return;
+  }
+  try { localStorage.setItem(LS_TOKEN_KEY, token); } catch(e) { /* 空間不足時靜默略過 */ }
+  closeTokenDialog();
+  await loadSeats(token);
+});
+
+/* 透過 GitHub API 取得所有 Copilot Seat（自動分頁） */
+async function fetchSeats(token) {
+  let page = 1, all = [], total = 0;
+  while (true) {
+    const res = await fetch(
+      `https://api.github.com/orgs/${GH_ORG}/copilot/billing/seats?per_page=100&page=${page}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': GH_API_VER
+        }
+      }
+    );
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { const j = await res.json(); if (j.message) msg += `：${j.message}`; } catch(e) {}
+      throw new Error(msg);
+    }
+    const data  = await res.json();
+    total       = data.total_seats || 0;          // total_seats 為總 Seat
+    const seats = data.seats || [];
+    all.push(...seats);
+    if (seats.length === 0 || all.length >= total) break;
+    page++;
+  }
+  return { total, seats: all };
+}
+
+async function loadSeats(token) {
+  seatZone.classList.remove('loaded');
+  seatStatusEl.textContent = '取得中…';
+  seatStatusEl.className = 'zone-status';
+  try {
+    const { total, seats } = await fetchSeats(token);
+    /* assignee.login 為使用者帳號 */
+    seatLogins = seats.map(s => (s.assignee && s.assignee.login) || '').filter(Boolean);
+    totalSeats = total;
+    seatLoaded = true;
+    buildSeatLogins();
+    seatStatusEl.textContent = `✓ ${totalSeats.toLocaleString()} 位 Seat`;
+    seatStatusEl.className = 'zone-status ok';
+    seatZone.classList.add('loaded');
+    if (usageData && addressData) processData();   // 兩份必要檔已就緒 → 一併重算
+  } catch (err) {
+    seatLoaded = false;
+    seatStatusEl.textContent = `✗ ${err.message}`;
+    seatStatusEl.className = 'zone-status error';
+  }
+}
+
+/* 頁面載入時，若 localStorage 已有 Token 則自動取得 Seat 資料 */
+(function restoreSeats() {
+  const token = localStorage.getItem(LS_TOKEN_KEY);
+  if (token) loadSeats(token);
+})();
 
 /* ── 頁面載入時還原通訊錄 ────────────────────── */
 (function restoreAddress() {
