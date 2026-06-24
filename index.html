@@ -620,9 +620,9 @@ tbody tr.row-zero:hover td { color: #64748b; }
       <span class="zone-status" id="usageStatus">拖曳或點擊上傳</span>
       <span class="zone-drag">放開以載入</span>
     </div>
-    <div class="drop-zone" id="addressZone" tabindex="0" role="button" aria-label="上傳通訊錄 CSV">
-      <input type="file" accept=".csv" id="addressFile" hidden>
-      <span class="zone-label">通訊錄 CSV</span>
+    <div class="drop-zone" id="addressZone" tabindex="0" role="button" aria-label="上傳服務帳號申請表">
+      <input type="file" accept=".xlsx" id="addressFile" hidden>
+      <span class="zone-label">服務帳號申請表</span>
       <span class="zone-status" id="addressStatus">拖曳或點擊上傳</span>
       <span class="zone-drag">放開以載入</span>
     </div>
@@ -661,7 +661,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
     </div>
     <div class="stat-pill" id="statNotFoundPill" style="display:none;">
       <span class="stat-num stat-warn" id="statNotFound">0</span>
-      <span>人未對應通訊錄</span>
+      <span>人未對應申請表</span>
       <button class="btn-manual-summary" id="btnBatchMap">✎ 手動對應</button>
     </div>
     <div class="stat-pill" id="statFilterPill" style="display:none;">
@@ -765,6 +765,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
             <th data-col="dept"      data-type="str">部門</th>
             <th data-col="division"  data-type="str">處別</th>
             <th data-col="group"     data-type="str">組別</th>
+            <th data-col="applyDate" data-type="str">申請日期</th>
                     <th data-col="aic"      data-type="num">AIC 用量</th>
             <th data-col="gross"   data-type="num">費用 (USD)</th>
             <th data-col="net"     data-type="num">超額費用 (USD)</th>
@@ -781,7 +782,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
 <!-- ── Manual Map Modal ─────────────────────── -->
 <div id="manualMapOverlay" role="dialog" aria-modal="true" aria-labelledby="dlgTitle">
   <div id="manualMapDialog">
-    <h2 id="dlgTitle">✏️ 手動對應通訊錄
+    <h2 id="dlgTitle">✏️ 手動對應申請表
       <small id="dlgSubtitle"></small>
     </h2>
 
@@ -835,14 +836,14 @@ tbody tr.row-zero:hover td { color: #64748b; }
 'use strict';
 
 /* ── State ───────────────────────────────────── */
-let usageData   = null;
-let addressData = null;
+let usageData     = null;
+let addressLoaded = false;     // 服務帳號申請表是否已載入（empMap 已建立）
 let seatLogins   = [];        // GitHub API 取得的 seat login 陣列
 let totalSeats   = 0;         // Response Schema 的 total_seats（總 Seat）
 let seatLoaded   = false;     // 是否已成功取得 Copilot Seat 資料
 let seatLoginSet = new Set(); // 全部 seat login（小寫）
 let results      = [];
-let empMap       = new Map();  // empId → {name, dept, division, group}
+let empMap       = new Map();  // empId → {name, dept, division, group, applyDate}
 let rawRowCount  = 0;
 
 let sortCol = 'gross';
@@ -885,21 +886,9 @@ function parseCSV(text) {
 
 /* ── Process ─────────────────────────────────── */
 function processData() {
-  if (!usageData || !addressData) return;
+  if (!usageData || !addressLoaded) return;
 
-  /* Employee map: empId → {name, dept, division, group} */
-  empMap = new Map();
-  for (let i = 3; i < addressData.length; i++) {
-    const r = addressData[i];
-    const id = (r[0] || '').trim();
-    if (!id) continue;
-    empMap.set(id, {
-      name:     (r[1] || '').trim(),
-      dept:     (r[5] || '').trim(),
-      division: (r[6] || '').trim(),
-      group:    (r[7] || '').trim()
-    });
-  }
+  /* empMap 由「服務帳號申請表」載入時建立（見 loadServiceAccountWorkbook） */
 
   /* Detect column positions from header */
   const hdrs  = usageData[0].map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
@@ -965,6 +954,7 @@ function processData() {
       dept:     emp ? emp.dept     : '',
       division: emp ? emp.division : '',
       group:    emp ? emp.group    : '',
+      applyDate: emp ? (emp.applyDate || '') : '',
       aic:   round2(u.aic),
       gross: round4(u.gross),
       net:   round4(u.net),
@@ -986,6 +976,7 @@ function processData() {
         dept:     emp ? emp.dept     : '',
         division: emp ? emp.division : '',
         group:    emp ? emp.group    : '',
+        applyDate: emp ? (emp.applyDate || '') : '',
         aic: 0, gross: 0, net: 0,
         found: !!emp,
         seat:  true
@@ -1156,6 +1147,7 @@ function renderTable() {
       <td>${esc(r.dept)}</td>
       <td>${esc(r.division)}</td>
       <td>${esc(r.group)}</td>
+      <td>${esc(r.applyDate)}</td>
       <td class="num">${r.aic.toLocaleString()}</td>
       <td class="num">$${fmt2(r.gross)}</td>
       <td class="num">$${fmt2(r.net)}</td>
@@ -1167,7 +1159,7 @@ function renderTable() {
   const fGross = displayRows.reduce((s, r) => s + r.gross, 0);
   const fNet   = displayRows.reduce((s, r) => s + r.net,   0);
   document.getElementById('tableFoot').innerHTML = `<tr>
-    <td colspan="6">合計（${displayRows.length.toLocaleString()} 人）</td>
+    <td colspan="7">合計（${displayRows.length.toLocaleString()} 人）</td>
     <td class="num">${round2(fAic).toLocaleString()}</td>
     <td class="num">$${fmt2(round4(fGross))}</td>
     <td class="num">$${fmt2(round4(fNet))}</td>
@@ -1764,6 +1756,7 @@ const HDR_COLS = [
   { key: 'dept',     header: '部門',         width: 22 },
   { key: 'division', header: '處別',         width: 22 },
   { key: 'group',    header: '組別',         width: 16 },
+  { key: 'applyDate',header: '申請日期',     width: 14 },
   { key: 'aic',      header: 'AIC用量',      width: 14 },
   { key: 'gross',    header: '費用USD',      width: 14 },
   { key: 'net',      header: '超額費用USD',  width: 16 },
@@ -1839,7 +1832,7 @@ function fillSheet(ws, rows, summary) {
   /* 資料列 */
   rows.forEach(r => ws.addRow({
     username: r.username, name: r.name, dept: r.dept,
-    division: r.division, group: r.group,
+    division: r.division, group: r.group, applyDate: r.applyDate || '',
     aic: r.aic, gross: r.gross, net: r.net
   }));
 
@@ -1849,17 +1842,17 @@ function fillSheet(ws, rows, summary) {
   const totalRowNum = dataEnd + 1;
   const colLetter = col => ws.getColumn(col).letter;
 
-  const aicCol   = colLetter(6);
-  const grossCol = colLetter(7);
-  const netCol   = colLetter(8);
+  const aicColNum   = HDR_COLS.findIndex(c => c.key === 'aic')   + 1;
+  const grossColNum = HDR_COLS.findIndex(c => c.key === 'gross') + 1;
+  const netColNum   = HDR_COLS.findIndex(c => c.key === 'net')   + 1;
 
   const totalRow = ws.getRow(totalRowNum);
   totalRow.getCell(1).value = '合計';
 
   [
-    { col: 6, letter: aicCol },
-    { col: 7, letter: grossCol },
-    { col: 8, letter: netCol },
+    { col: aicColNum,   letter: colLetter(aicColNum)   },
+    { col: grossColNum, letter: colLetter(grossColNum) },
+    { col: netColNum,   letter: colLetter(netColNum)   },
   ].forEach(({ col, letter }) => {
     const cell = totalRow.getCell(col);
     cell.value        = { formula: `SUM(${letter}${dataStart}:${letter}${dataEnd})` };
@@ -1922,8 +1915,8 @@ document.getElementById('exportBtn').addEventListener('click', async () => {
 function today() { return new Date().toISOString().slice(0,10).replace(/-/g,''); }
 
 /* ── Drop Zone ───────────────────────────────── */
-const LS_ADDRESS_KEY  = 'copilot_address_csv';
-const LS_ADDRESS_NAME = 'copilot_address_name';
+const LS_ADDRESS_KEY  = 'copilot_service_account_map';   // empMap 序列化（JSON）
+const LS_ADDRESS_NAME = 'copilot_service_account_name';
 
 function setupZone(zoneId, inputId, statusId, onLoad) {
   const zone   = document.getElementById(zoneId);
@@ -1967,14 +1960,104 @@ setupZone('usageZone', 'usageFile', 'usageStatus', (rows) => {
   processData();
 });
 
-setupZone('addressZone', 'addressFile', 'addressStatus', (rows, filename, raw) => {
-  addressData = rows;
+/* ── 服務帳號申請表（XLSX）───────────────────── */
+
+/* 取出 ExcelJS 儲存格的純文字（處理 richText / 超連結 / 日期 / 公式結果） */
+function cellText(cell) {
+  let v = cell ? cell.value : null;
+  if (v == null) return '';
+  if (v instanceof Date) return fmtDate(v);
+  if (typeof v === 'object') {
+    if (Array.isArray(v.richText)) return v.richText.map(t => t.text).join('');
+    if (v.text   != null) return String(v.text);
+    if (v.result != null) return v.result instanceof Date ? fmtDate(v.result) : String(v.result);
+    if (v.hyperlink) return String(v.hyperlink);
+    return '';
+  }
+  return String(v);
+}
+function fmtDate(d) {
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/* 解析服務帳號申請表：以「目前使用中」為主，「刪除帳號紀錄」為備援，建立 empMap。
+   欄位（1-based）：2 部門、3 處名稱、4 組名稱、5 姓名、6 員工編號、8 啟用/刪除日期
+   申請日期僅取自「目前使用中」的啟用日期。前 2 列為標題與表頭。 */
+async function loadServiceAccountWorkbook(buf) {
+  if (typeof ExcelJS === 'undefined') throw new Error('ExcelJS 函式庫尚未載入');
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buf);
+
+  const map = new Map();
+  /* applyDateCol：申請日期取自的欄位。
+     目前使用中 → 第 8 欄「啟用日期」；刪除帳號紀錄 → 第 7 欄「狀態」（刪除／離職等）。 */
+  const readSheet = (name, applyDateCol) => {
+    const ws = wb.getWorksheet(name);
+    if (!ws) return;
+    ws.eachRow((row, rn) => {
+      if (rn <= 2) return;                       // 跳過標題列與表頭列
+      const empId = cellText(row.getCell(6)).trim();
+      if (!empId) return;
+      if (map.has(empId)) return;                // 已由優先來源建立 → 不覆寫
+      map.set(empId, {
+        name:      cellText(row.getCell(5)).trim(),
+        dept:      cellText(row.getCell(2)).trim(),
+        division:  cellText(row.getCell(3)).trim(),
+        group:     cellText(row.getCell(4)).trim(),
+        applyDate: cellText(row.getCell(applyDateCol)).trim()
+      });
+    });
+  };
+  readSheet('目前使用中', 8);                    // 優先對應來源（啟用日期）
+  readSheet('刪除帳號紀錄', 7);                  // 對應不到時的備援（以狀態填入申請日期）
+
+  if (!map.size) throw new Error('找不到「目前使用中」或「刪除帳號紀錄」資料');
+  empMap = map;
+  addressLoaded = true;
+  return map.size;
+}
+
+function cacheServiceAccountMap(filename) {
   try {
-    localStorage.setItem(LS_ADDRESS_KEY,  raw);
+    localStorage.setItem(LS_ADDRESS_KEY,  JSON.stringify(Object.fromEntries(empMap)));
     localStorage.setItem(LS_ADDRESS_NAME, filename);
   } catch(e) { /* 空間不足時靜默略過 */ }
-  processData();
-});
+}
+
+(function setupServiceAccountZone() {
+  const zone   = document.getElementById('addressZone');
+  const input  = document.getElementById('addressFile');
+  const status = document.getElementById('addressStatus');
+
+  async function handleFile(file) {
+    if (!file) return;
+    status.textContent = '解析中…';
+    status.className   = 'zone-status';
+    try {
+      const count = await loadServiceAccountWorkbook(await file.arrayBuffer());
+      status.textContent = `✓ ${file.name}（${count} 筆）`;
+      status.className   = 'zone-status ok';
+      zone.classList.add('loaded');
+      cacheServiceAccountMap(file.name);
+      processData();
+    } catch (err) {
+      status.textContent = `✗ 解析失敗：${err.message}`;
+      status.className   = 'zone-status error';
+    }
+  }
+
+  zone.addEventListener('click',   () => input.click());
+  zone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') input.click(); });
+  input.addEventListener('change', e => handleFile(e.target.files[0]));
+
+  zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    handleFile(e.dataTransfer.files[0]);
+  });
+})();
 
 /* ── GitHub Copilot Seat API ─────────────────── */
 const LS_TOKEN_KEY = 'copilot_gh_token';
@@ -2019,7 +2102,7 @@ document.getElementById('tokenDelete').addEventListener('click', () => {
   seatStatusEl.textContent = '點擊設定 Token';
   seatStatusEl.className = 'zone-status';
   closeTokenDialog();
-  if (usageData && addressData) processData();
+  if (usageData && addressLoaded) processData();
 });
 
 document.getElementById('tokenOk').addEventListener('click', async () => {
@@ -2078,7 +2161,7 @@ async function loadSeats(token) {
     seatStatusEl.textContent = `✓ ${totalSeats.toLocaleString()} 位 Seat`;
     seatStatusEl.className = 'zone-status ok';
     seatZone.classList.add('loaded');
-    if (usageData && addressData) processData();   // 兩份必要檔已就緒 → 一併重算
+    if (usageData && addressLoaded) processData();   // 兩份必要檔已就緒 → 一併重算
   } catch (err) {
     seatLoaded = false;
     seatStatusEl.textContent = `✗ ${err.message}`;
@@ -2092,16 +2175,16 @@ async function loadSeats(token) {
   if (token) loadSeats(token);
 })();
 
-/* ── 頁面載入時還原通訊錄 ────────────────────── */
-(function restoreAddress() {
+/* ── 頁面載入時還原服務帳號申請表（快取的 empMap）─ */
+(function restoreServiceAccount() {
   const raw  = localStorage.getItem(LS_ADDRESS_KEY);
-  const name = localStorage.getItem(LS_ADDRESS_NAME) || '通訊錄';
+  const name = localStorage.getItem(LS_ADDRESS_NAME) || '服務帳號申請表';
   if (!raw) return;
   try {
-    const rows = parseCSV(raw);
-    addressData = rows;
+    empMap = new Map(Object.entries(JSON.parse(raw)));
+    addressLoaded = true;
     const status = document.getElementById('addressStatus');
-    status.textContent = `✓ ${name}（${rows.length - 1} 筆，已快取）`;
+    status.textContent = `✓ ${name}（${empMap.size} 筆，已快取）`;
     status.className   = 'zone-status ok';
     document.getElementById('addressZone').classList.add('loaded');
   } catch(e) {
