@@ -215,6 +215,15 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .chart-controls .pool-amount { color: #16a34a; font-weight: 600; }
+.aic-presets { display: inline-flex; gap: 4px; margin-left: 2px; }
+.aic-preset {
+  background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;
+  padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: background .15s, color .15s, border-color .15s;
+  font-variant-numeric: tabular-nums;
+}
+.aic-preset:hover { background: #e2e8f0; border-color: #94a3b8; }
+.aic-preset.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 .chart-note {
   font-size: 12px;
   color: #9a3412;
@@ -803,6 +812,10 @@ tbody tr.row-zero:hover td { color: #64748b; }
       </label>
       <label>AIC 量
         <input type="number" id="aicInput" min="0" step="100" value="3000">
+        <span class="aic-presets">
+          <button type="button" class="aic-preset" data-aic="1900">1900</button>
+          <button type="button" class="aic-preset" data-aic="3000">3000</button>
+        </span>
       </label>
       <span class="pool-amount">總 Pool 使用金額：<b id="poolAmount">$0.00</b></span>
       <span class="chart-summary" id="chartSummary" style="display:none;"></span>
@@ -1218,7 +1231,7 @@ function renderTable() {
   document.getElementById('statRows').textContent  = rawRowCount.toLocaleString();
   const statAicEl  = document.getElementById('statAic');
   const statAicPct = document.getElementById('statAicPct');
-  const aicQuota   = parseFloat(document.getElementById('aicInput').value) || 0;
+  const aicQuota   = ACTUAL_AIC_QUOTA;   // 摘要採實際配額基準，不受趨勢圖試算影響
   const usedAicTxt = round2(totAic).toLocaleString();
   if (hasSeatData() && aicQuota > 0) {
     const quotaAic = seatCount(filtered) * aicQuota;
@@ -1328,7 +1341,7 @@ function renderTable() {
     <td class="num">$${fmt2(round4(fNet))}</td>
   </tr>`;
 
-  document.getElementById('viewTabs').style.display = '';
+  updateCmdTabVisibility();   // 使用報表 CSV 已載入 → 顯示資料分頁
   setView(currentView);
   renderChart();
   renderDistChart();
@@ -1365,11 +1378,29 @@ function dayKey(d) {
 }
 
 const AIC_PER_USD = 100;   // 1 USD = 100 AICs
+/* 每位 Seat 實際的 AIC 配額（基準值）。「使用量明細」摘要與匯出報表皆以此為準，
+   不受「累積趨勢圖」AIC 量輸入框（僅供試算）影響。 */
+const ACTUAL_AIC_QUOTA = 3000;
 
 /* Pool 設定：seat 數預設為使用者人數，使用者改過後不再自動覆寫 */
 let seatTouched = false;
 document.getElementById('seatInput').addEventListener('input', () => { seatTouched = true; renderChart(); });
-document.getElementById('aicInput').addEventListener('input', renderChart);
+document.getElementById('aicInput').addEventListener('input', () => { renderChart(); syncAicPresets(); });
+
+/* AIC 量常用值快速選擇（1900 / 3000）；輸入框仍可自行輸入任意值 */
+function syncAicPresets() {
+  const v = parseFloat(document.getElementById('aicInput').value);
+  document.querySelectorAll('.aic-preset').forEach(b =>
+    b.classList.toggle('active', parseFloat(b.dataset.aic) === v));
+}
+document.querySelectorAll('.aic-preset').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('aicInput').value = btn.dataset.aic;
+    syncAicPresets();
+    renderChart();
+  });
+});
+syncAicPresets();
 
 function renderChart() {
   const note = document.getElementById('chartNote');
@@ -1927,9 +1958,11 @@ function safeSheetName(name) {
 
 /* 依目前資料組出摘要項目陣列（每項各佔一格，對應畫面上的摘要列） */
 function buildSummaryCells(rows) {
+  /* AI Credits 量採「使用量明細」摘要的「已使用 / 總量 (百分比)」，
+     總量為 Seats × AIC 量；不採「累積趨勢圖」可調整 seat／預估等試算資訊 */
   const totAic   = rows.reduce((s, r) => s + r.aic, 0);
   const active   = rows.filter(r => r.aic > 0).length;
-  const aicQuota = parseFloat(document.getElementById('aicInput').value) || 0;
+  const aicQuota = ACTUAL_AIC_QUOTA;   // 匯出採實際配額基準，不受趨勢圖試算影響
 
   const cells = [`使用者: ${active.toLocaleString()} 人`];
 
@@ -1937,14 +1970,14 @@ function buildSummaryCells(rows) {
     const seatCnt = seatCount(rows);
     cells.push(`Seats: ${seatCnt.toLocaleString()}`);
     if (aicQuota > 0) {
-      const quota = seatCnt * aicQuota;
-      const pct   = quota > 0 ? Math.round(totAic / quota * 100) : 0;
-      cells.push(`AI Credits ${round2(totAic).toLocaleString()} / ${quota.toLocaleString()} (${pct}%)`);
+      const total = seatCnt * aicQuota;
+      const pct   = total > 0 ? Math.round(totAic / total * 100) : 0;
+      cells.push(`${round2(totAic).toLocaleString()} / ${total.toLocaleString()} AI Credits (${pct}%)`);
     } else {
-      cells.push(`AI Credits ${round2(totAic).toLocaleString()}`);
+      cells.push(`${round2(totAic).toLocaleString()} AI Credits`);
     }
   } else {
-    cells.push(`AI Credits ${round2(totAic).toLocaleString()}`);
+    cells.push(`${round2(totAic).toLocaleString()} AI Credits`);
   }
 
   return { left: cells, date: latestDate ? `資料日期 ${latestDate}` : '' };
@@ -2117,6 +2150,7 @@ function setupZone(zoneId, inputId, statusId, onLoad) {
 setupZone('usageZone', 'usageFile', 'usageStatus', (rows) => {
   usageData = rows;
   processData();
+  updateCmdTabVisibility();   // 重新評估分頁顯示（使用報表 CSV 已上傳）
 });
 
 /* ── 服務帳號申請表（XLSX）───────────────────── */
@@ -2365,13 +2399,27 @@ async function probeBudgetAccess(token) {
   updateCmdTabVisibility();
 }
 
-/* 依 Token 與權限切換「重置使用者上限」分頁的顯示 */
+/* 依目前狀態切換分頁顯示：
+   - 「使用量明細／累積趨勢圖／人數常態分佈」需先上傳使用報表 CSV 才顯示
+   - 「重置使用者上限」於有 Token 且具 Budget 權限時顯示（不需報表） */
 function updateCmdTabVisibility() {
-  const show = hasToken() && budgetAccessible;
-  document.getElementById('cmdTabBtn').style.display = show ? '' : 'none';
-  /* 即使尚未載入報表，只要有 Token 且有權限也顯示分頁列，讓使用者能執行重置 */
-  if (show) document.getElementById('viewTabs').style.display = '';
-  if (!show && currentView === 'cmd') setView('table');
+  const dataShow = !!usageData;                      // 使用報表 CSV 已上傳
+  const cmdShow  = hasToken() && budgetAccessible;   // 有 Token 且具 Budget 權限
+
+  document.querySelectorAll('#viewTabs .tab-btn').forEach(b => {
+    const isCmd = b.dataset.view === 'cmd';
+    b.style.display = (isCmd ? cmdShow : dataShow) ? '' : 'none';
+  });
+
+  document.getElementById('viewTabs').style.display = (dataShow || cmdShow) ? '' : 'none';
+
+  /* 若目前所在分頁已被隱藏，切換到可用分頁 */
+  const dataViews = ['table', 'chart', 'dist'];
+  if (currentView === 'cmd' && !cmdShow) {
+    setView('table');
+  } else if (dataViews.includes(currentView) && !dataShow && cmdShow) {
+    setView('cmd');
+  }
 }
 
 /* 透過 GitHub API 取得所有 Budget。
