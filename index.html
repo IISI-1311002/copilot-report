@@ -1365,6 +1365,13 @@ function setView(view) {
   document.getElementById('cmdContainer').style.display   = view === 'cmd'   ? '' : 'none';
 }
 
+/* 無任何可用分頁時：隱藏所有檢視與摘要列（避免顯示空白表頭） */
+function hideAllViews() {
+  ['tableContainer', 'chartContainer', 'distContainer', 'cmdContainer'].forEach(id =>
+    document.getElementById(id).style.display = 'none');
+  document.getElementById('summary').style.display = 'none';
+}
+
 document.querySelectorAll('#viewTabs .tab-btn').forEach(btn =>
   btn.addEventListener('click', () => setView(btn.dataset.view)));
 
@@ -2413,12 +2420,15 @@ function updateCmdTabVisibility() {
 
   document.getElementById('viewTabs').style.display = (dataShow || cmdShow) ? '' : 'none';
 
-  /* 若目前所在分頁已被隱藏，切換到可用分頁 */
+  /* 若目前所在分頁已被隱藏，切換到可用分頁；
+     若無任何可用分頁則全部隱藏（使用報表 CSV 未上傳前不顯示表頭） */
   const dataViews = ['table', 'chart', 'dist'];
-  if (currentView === 'cmd' && !cmdShow) {
-    setView('table');
-  } else if (dataViews.includes(currentView) && !dataShow && cmdShow) {
-    setView('cmd');
+  const curHidden = (dataViews.includes(currentView) && !dataShow) ||
+                    (currentView === 'cmd' && !cmdShow);
+  if (curHidden) {
+    if      (dataShow) setView('table');
+    else if (cmdShow)  setView('cmd');
+    else               hideAllViews();
   }
 }
 
