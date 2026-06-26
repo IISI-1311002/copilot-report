@@ -1954,9 +1954,9 @@ const HDR_COLS = [
   { key: 'division', header: '處別',         width: 22 },
   { key: 'group',    header: '組別',         width: 16 },
   { key: 'applyDate',header: '申請日期',     width: 14 },
-  { key: 'aic',      header: 'AIC用量',      width: 14 },
-  { key: 'gross',    header: '費用USD',      width: 14 },
-  { key: 'net',      header: '超額費用USD',  width: 16 },
+  { key: 'aic',      header: 'AIC用量',      width: 14, numFmt: '#,##0.00' },
+  { key: 'gross',    header: '費用USD',      width: 14, numFmt: '#,##0.00' },
+  { key: 'net',      header: '超額費用USD',  width: 16, numFmt: '#,##0.00' },
 ];
 
 function safeSheetName(name) {
@@ -1991,7 +1991,7 @@ function buildSummaryCells(rows) {
 }
 
 function fillSheet(ws, rows, summary) {
-  ws.columns = HDR_COLS.map(c => ({ key: c.key, width: c.width }));
+  ws.columns = HDR_COLS.map(c => ({ key: c.key, width: c.width, style: c.numFmt ? { numFmt: c.numFmt } : undefined }));
 
   const off = summary ? 1 : 0;
 
