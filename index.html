@@ -1095,7 +1095,7 @@ function processData() {
     const user = (r[iUser] || '').trim().replace(/^"|"$/g, '');
     const sku  = (r[iSku]  || '').trim().replace(/^"|"$/g, '');
     if (!user) continue;
-    if (sku !== 'copilot_ai_credit') continue;
+    // if (sku !== 'copilot_ai_credit') continue;
     rawRowCount++;
 
     let rowDate = '';
