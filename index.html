@@ -683,7 +683,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
 #tokenInput.input-err { border-color: #dc2626; }
 
 /* ── Command Generator ──────────────────────── */
-#cmdContainer {
+#cmdContainer, #budgetContainer {
   background: white;
   border-radius: 10px;
   box-shadow: 0 1px 4px rgba(0,0,0,.07);
@@ -709,6 +709,33 @@ tbody tr.row-zero:hover td { color: #64748b; }
 .cmd-btn:disabled { background: #94a3b8; cursor: not-allowed; }
 .cmd-btn-danger { background: #dc2626; }
 .cmd-btn-danger:hover:not(:disabled) { background: #b91c1c; }
+
+/* ── Set user budgets ───────────────────────── */
+.budget-form {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) 180px;
+  gap: 14px;
+  align-items: start;
+}
+.budget-field { display: flex; flex-direction: column; gap: 5px; }
+.budget-field label { font-size: 12.5px; font-weight: 600; color: #334155; }
+.budget-field textarea, .budget-field input, .budget-field select {
+  width: 100%; padding: 9px 11px; border: 1.5px solid #e2e8f0; border-radius: 6px;
+  font-size: 13px; font-family: inherit; outline: none; color: #0f172a;
+  transition: border-color .15s; box-sizing: border-box;
+}
+.budget-field textarea {
+  min-height: 150px; resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  line-height: 1.6;
+}
+.budget-field textarea:focus, .budget-field input:focus, .budget-field select:focus { border-color: #2563eb; }
+.budget-field textarea.input-err, .budget-field input.input-err { border-color: #dc2626; }
+.budget-hint { font-size: 11px; color: #94a3b8; line-height: 1.5; }
+.budget-actions { display: flex; justify-content: flex-end; }
+@media (max-width: 640px) {
+  .budget-form { grid-template-columns: 1fr; }
+}
 
 /* ── Reset confirm Modal ────────────────────── */
 #resetOverlay {
@@ -786,7 +813,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
   cursor: pointer; transition: background .15s;
 }
 .cmd-copy:hover { background: #3d4f65; }
-#cmdOutput {
+#cmdOutput, #budgetOutput {
   width: 100%; min-height: 220px; resize: vertical;
   background: #0f172a; color: #e2e8f0;
   border: none; border-radius: 0 0 8px 8px;
@@ -878,6 +905,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
     <button class="tab-btn" data-view="chart">累積趨勢圖</button>
     <button class="tab-btn" data-view="dist">人數常態分佈</button>
     <button class="tab-btn" data-view="seats" id="seatListTabBtn" style="display:none;">Seat 使用名單</button>
+    <button class="tab-btn" data-view="budget" id="budgetTabBtn" style="display:none;">設定預算</button>
     <button class="tab-btn" data-view="cmd" id="cmdTabBtn" style="display:none;">重置使用者上限</button>
   </div>
 
@@ -947,6 +975,45 @@ tbody tr.row-zero:hover td { color: #64748b; }
         <span style="width:14px;height:0;display:inline-block;border-top:2px dashed #BA7517;"></span>中位數
       </span>
       <span style="margin-left:8px;color:#94a3b8;">· X 軸對數刻度</span>
+    </div>
+  </div>
+
+  <!-- Set User Budgets -->
+  <div id="budgetContainer" style="display:none;">
+    <div class="cmd-section">
+      <div>
+        <div class="cmd-title">設定使用者預算</div>
+        <div class="cmd-sub">
+          每行輸入一筆 7 碼員工編號，系統會轉成 <code>IISI-員工編號</code> GitHub 帳號，
+          並透過 GitHub API 設定每位使用者的 Copilot AI credits 月預算。
+        </div>
+      </div>
+      <div class="budget-form">
+        <div class="budget-field">
+          <label for="budgetEmployeeIds">員工編號</label>
+          <textarea id="budgetEmployeeIds" spellcheck="false"></textarea>
+          <span class="budget-hint">可貼多筆，以斷行區分；每筆必須是 7 碼數字且不可重複。</span>
+        </div>
+        <div class="budget-field">
+          <label for="budgetAmountPreset">每人預算（USD）</label>
+          <select id="budgetAmountPreset">
+            <option value="70">70</option>
+            <option value="100">100</option>
+            <option value="150">150</option>
+            <option value="custom">自訂金額</option>
+          </select>
+          <input type="number" id="budgetAmount" min="0" step="1" value="70" aria-label="自訂預算金額" style="display:none;">
+          <span class="budget-hint">可選擇 70、100、150，或自行輸入其他整數金額。</span>
+        </div>
+      </div>
+      <div class="budget-actions">
+        <button class="cmd-btn" id="setBudgetsBtn">檢查並設定預算</button>
+      </div>
+      <div class="cmd-status" id="budgetStatus" style="display:none;"></div>
+      <div class="cmd-output-wrap" id="budgetOutputWrap" style="display:none;">
+        <div class="cmd-output-bar"><span id="budgetCount"></span></div>
+        <textarea id="budgetOutput" readonly spellcheck="false"></textarea>
+      </div>
     </div>
   </div>
 
@@ -1069,6 +1136,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
     <div class="dlg-desc">
       輸入具備 <code>manage_billing:copilot</code>（或 <code>read:org</code>）權限的 Personal Access Token，
       系統將透過 GitHub API 取得 <code>IISI-Group</code> 組織的 Copilot Seat 資料。<br>
+      「設定預算」與「重置使用者上限」另需組織 <code>Administration: write</code> 權限。<br>
       Token 僅儲存於本機瀏覽器 <code>localStorage</code>，不會上傳至任何伺服器。
     </div>
     <div class="dlg-row-input">
@@ -1546,12 +1614,13 @@ function setView(view) {
   document.getElementById('chartContainer').style.display = view === 'chart' ? '' : 'none';
   document.getElementById('distContainer').style.display  = view === 'dist'  ? '' : 'none';
   document.getElementById('seatListContainer').style.display = view === 'seats' ? '' : 'none';
+  document.getElementById('budgetContainer').style.display = view === 'budget' ? '' : 'none';
   document.getElementById('cmdContainer').style.display   = view === 'cmd'   ? '' : 'none';
 }
 
 /* 無任何可用分頁時：隱藏所有檢視與摘要列（避免顯示空白表頭） */
 function hideAllViews() {
-  ['tableContainer', 'chartContainer', 'distContainer', 'seatListContainer', 'cmdContainer'].forEach(id =>
+  ['tableContainer', 'chartContainer', 'distContainer', 'seatListContainer', 'budgetContainer', 'cmdContainer'].forEach(id =>
     document.getElementById(id).style.display = 'none');
   document.getElementById('summary').style.display = 'none';
 }
@@ -2475,6 +2544,7 @@ const LS_SEAT_CACHE_KEY = 'copilot_seat_cache_v1';
 const SEAT_CACHE_TTL_MS = 30 * 60 * 1000;       // Seat API 結果快取 30 分鐘
 const GH_ORG       = 'IISI-Group';
 const GH_API_VER   = '2026-03-10';
+let budgetAccessible = false;  // 僅在 Budget API 權限探測成功後顯示管理分頁
 
 const seatZone     = document.getElementById('seatZone');
 const seatStatusEl = document.getElementById('seatStatus');
@@ -2516,7 +2586,7 @@ document.getElementById('tokenDelete').addEventListener('click', () => {
   seatZone.classList.remove('loaded');
   seatStatusEl.textContent = '點擊設定 Token';
   seatStatusEl.className = 'zone-status';
-  budgetAccessible = true;   // 重設權限狀態，待下次設定 Token 重新探測
+  budgetAccessible = false;
   updateCmdTabVisibility();
   closeTokenDialog();
   if (usageData && addressLoaded) processData();
@@ -2536,6 +2606,8 @@ document.getElementById('tokenOk').addEventListener('click', async () => {
     if (previousToken && previousToken !== token) localStorage.removeItem(LS_SEAT_CACHE_KEY);
   } catch(e) { /* 空間不足時靜默略過 */ }
   closeTokenDialog();
+  budgetAccessible = false;
+  updateCmdTabVisibility();
   probeBudgetAccess(token);   // 探測 Budget 權限後再決定分頁顯示
   await loadSeats(token);
 });
@@ -2630,14 +2702,11 @@ async function loadSeats(token) {
   if (token) loadSeats(token);
 })();
 
-/* ── 重置使用者上限分頁 ───────────────────────── */
+/* ── Budget 管理分頁 ───────────────────────────── */
 /* 是否已輸入 Token（分頁僅在有 Token 時出現） */
 function hasToken() { return !!localStorage.getItem(LS_TOKEN_KEY); }
 
-/* 是否具備使用 Budget API 的權限。Budget API 回傳 404 視為無權限 → 隱藏分頁。 */
-let budgetAccessible = true;
-
-/* 探測 Budget API 權限：404 → 無權限。其餘錯誤（如網路）不視為無權限。 */
+/* 探測 Budget API 權限：僅成功回應才顯示管理分頁。 */
 async function probeBudgetAccess(token) {
   try {
     const res = await fetch(
@@ -2650,9 +2719,9 @@ async function probeBudgetAccess(token) {
         }
       }
     );
-    budgetAccessible = res.status !== 404;
+    budgetAccessible = res.ok;
   } catch (e) {
-    /* 非權限錯誤：維持原狀，不因此隱藏分頁 */
+    budgetAccessible = false;
   }
   updateCmdTabVisibility();
 }
@@ -2660,16 +2729,16 @@ async function probeBudgetAccess(token) {
 /* 依目前狀態切換分頁顯示：
    - 「使用量明細／累積趨勢圖／人數常態分佈」需先上傳使用報表 CSV
    - 「Seat 使用名單」需已取得 Seat API 資料
-   - 「重置使用者上限」需有 Token 且具 Budget 權限 */
+   - 「設定預算／重置使用者上限」需有 Token 且具 Budget 權限 */
 function updateCmdTabVisibility() {
   const dataShow = !!usageData;                      // 使用報表 CSV 已上傳
   const seatShow = seatLoaded;                       // Seat API 已取得（含有效快取）
   const cmdShow  = hasToken() && budgetAccessible;   // 有 Token 且具 Budget 權限
 
   document.querySelectorAll('#viewTabs .tab-btn').forEach(b => {
-    const isCmd = b.dataset.view === 'cmd';
+    const isAdmin = b.dataset.view === 'cmd' || b.dataset.view === 'budget';
     const isSeat = b.dataset.view === 'seats';
-    b.style.display = (isCmd ? cmdShow : isSeat ? seatShow : dataShow) ? '' : 'none';
+    b.style.display = (isAdmin ? cmdShow : isSeat ? seatShow : dataShow) ? '' : 'none';
   });
 
   document.getElementById('viewTabs').style.display = (dataShow || seatShow || cmdShow) ? '' : 'none';
@@ -2678,15 +2747,151 @@ function updateCmdTabVisibility() {
      若無任何可用分頁則全部隱藏（使用報表 CSV 未上傳前不顯示表頭） */
   const dataViews = ['table', 'chart', 'dist'];
   const curHidden = (dataViews.includes(currentView) && !dataShow) ||
-                    (currentView === 'seats' && !seatShow) ||
-                    (currentView === 'cmd' && !cmdShow);
+                     (currentView === 'seats' && !seatShow) ||
+                     (currentView === 'budget' && !cmdShow) ||
+                     (currentView === 'cmd' && !cmdShow);
   if (curHidden) {
     if      (dataShow) setView('table');
     else if (seatShow) setView('seats');
-    else if (cmdShow)  setView('cmd');
+    else if (cmdShow)  setView('budget');
     else               hideAllViews();
+  } else {
+    /* 權限探測完成後，還原目前可用分頁（可能曾在探測期間被暫時隱藏）。 */
+    setView(currentView);
   }
 }
+
+/* 解析並驗證批次員工編號。所有資料皆正確才允許呼叫 API。 */
+function parseBudgetEmployeeIds(raw) {
+  const lines = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  if (!lines.length) throw new Error('請至少輸入一筆員工編號。');
+
+  const invalid = lines.filter(id => !/^\d{7}$/.test(id));
+  if (invalid.length) throw new Error(`員工編號必須是 7 碼數字：${invalid.join('、')}`);
+
+  const seen = new Set();
+  const duplicates = [...new Set(lines.filter(id => seen.has(id) || !seen.add(id)))];
+  if (duplicates.length) throw new Error(`員工編號不可重複：${duplicates.join('、')}`);
+  return lines;
+}
+
+/* 建立單一 user scope Copilot AI credits Budget。 */
+async function createUserBudget(token, username, amount) {
+  const res = await fetch(
+    `https://api.github.com/organizations/${GH_ORG}/settings/billing/budgets`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': GH_API_VER,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        budget_amount: amount,
+        prevent_further_usage: true,
+        budget_scope: 'user',
+        budget_entity_name: '',
+        budget_type: 'BundlePricing',
+        budget_product_sku: 'ai_credits',
+        budget_alerting: { will_alert: false, alert_recipients: [] },
+        user: username
+      })
+    }
+  );
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); if (j.message) msg += `：${j.message}`; } catch(e) {}
+    throw new Error(msg);
+  }
+}
+
+const budgetAmountPreset = document.getElementById('budgetAmountPreset');
+const budgetAmountInput = document.getElementById('budgetAmount');
+
+budgetAmountPreset.addEventListener('change', () => {
+  const isCustom = budgetAmountPreset.value === 'custom';
+  budgetAmountInput.style.display = isCustom ? '' : 'none';
+  budgetAmountInput.classList.remove('input-err');
+  if (isCustom) {
+    budgetAmountInput.value = '';
+    budgetAmountInput.focus();
+  } else {
+    budgetAmountInput.value = budgetAmountPreset.value;
+  }
+});
+
+document.getElementById('setBudgetsBtn').addEventListener('click', async () => {
+  const token = localStorage.getItem(LS_TOKEN_KEY);
+  const idsInput = document.getElementById('budgetEmployeeIds');
+  const amountInput = document.getElementById('budgetAmount');
+  const status = document.getElementById('budgetStatus');
+  const outputWrap = document.getElementById('budgetOutputWrap');
+  const output = document.getElementById('budgetOutput');
+  const btn = document.getElementById('setBudgetsBtn');
+
+  idsInput.classList.remove('input-err');
+  amountInput.classList.remove('input-err');
+  outputWrap.style.display = 'none';
+
+  if (!token) {
+    status.style.display = '';
+    status.className = 'cmd-status err';
+    status.textContent = '✗ 尚未設定 Token，請先於「Seats」區塊設定 GitHub Token。';
+    return;
+  }
+
+  let employeeIds;
+  try {
+    employeeIds = parseBudgetEmployeeIds(idsInput.value);
+  } catch (err) {
+    idsInput.classList.add('input-err');
+    status.style.display = '';
+    status.className = 'cmd-status err';
+    status.textContent = `✗ ${err.message}`;
+    return;
+  }
+
+  const amount = Number(amountInput.value);
+  if (amountInput.value.trim() === '' || !Number.isSafeInteger(amount) || amount < 0) {
+    amountInput.classList.add('input-err');
+    status.style.display = '';
+    status.className = 'cmd-status err';
+    status.textContent = '✗ 預算必須是大於或等於 0 的整數（USD）。';
+    return;
+  }
+
+  const users = employeeIds.map(id => `IISI-${id}`);
+  btn.disabled = true;
+  status.style.display = '';
+  status.className = 'cmd-status';
+  output.value = '';
+
+  const resultLines = [];
+  let ok = 0, fail = 0;
+  for (let i = 0; i < users.length; i++) {
+    const username = users[i];
+    status.textContent = `設定中…（${i + 1}/${users.length}）${username}`;
+    try {
+      await createUserBudget(token, username, amount);
+      ok++;
+      resultLines.push(`✓ ${username} — $${amount} USD`);
+    } catch (err) {
+      fail++;
+      resultLines.push(`✗ ${username} — ${err.message}`);
+    }
+  }
+
+  output.value = resultLines.join('\n');
+  document.getElementById('budgetCount').textContent =
+    `共 ${users.length} 筆 · 成功 ${ok} · 失敗 ${fail}`;
+  outputWrap.style.display = '';
+  status.className = fail ? 'cmd-status err' : 'cmd-status ok';
+  status.textContent = fail
+    ? `設定完成，但有 ${fail} 筆失敗。`
+    : `✓ 已為 ${ok} 位使用者設定預算。`;
+  btn.disabled = false;
+});
 
 /* 透過 GitHub API 取得所有 Budget。
    此 API 以 page 參數翻頁，依 page_info.has_next_page 判斷是否還有下一頁。 */
@@ -2904,7 +3109,7 @@ document.getElementById('copyBudgetCmdBtn').addEventListener('click', async () =
   setTimeout(() => { btn.textContent = orig; }, 1500);
 });
 
-/* 初始化分頁顯示狀態；若已有 Token 則探測 Budget 權限（404 → 隱藏分頁） */
+/* 初始化分頁顯示狀態；若已有 Token 則探測 Budget API 權限。 */
 updateCmdTabVisibility();
 (function initBudgetAccess() {
   const token = localStorage.getItem(LS_TOKEN_KEY);
