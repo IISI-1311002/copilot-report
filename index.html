@@ -683,7 +683,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
 #tokenInput.input-err { border-color: #dc2626; }
 
 /* ── Command Generator ──────────────────────── */
-#cmdContainer, #budgetContainer {
+#cmdContainer, #budgetContainer, #removeContainer {
   background: white;
   border-radius: 10px;
   box-shadow: 0 1px 4px rgba(0,0,0,.07);
@@ -907,6 +907,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
     <button class="tab-btn" data-view="seats" id="seatListTabBtn" style="display:none;">Seat 使用名單</button>
     <button class="tab-btn" data-view="budget" id="budgetTabBtn" style="display:none;">設定預算</button>
     <button class="tab-btn" data-view="cmd" id="cmdTabBtn" style="display:none;">重置使用者上限</button>
+    <button class="tab-btn" data-view="remove" style="display:none;">移出組織</button>
   </div>
 
   <!-- Chart -->
@@ -1014,6 +1015,31 @@ tbody tr.row-zero:hover td { color: #64748b; }
         <div class="cmd-output-bar"><span id="budgetCount"></span></div>
         <textarea id="budgetOutput" readonly spellcheck="false"></textarea>
       </div>
+    </div>
+  </div>
+
+  <div id="removeContainer" style="display:none;">
+    <div class="cmd-section">
+      <div class="cmd-title">移出組織</div>
+      <p class="cmd-sub">先上傳目前全公司的通訊錄 XLSX（須有「員工編號」欄），7 碼員工編號會轉成 IISI-員工編號。此功能比對 IISI-Group 的全部組織成員，包含未配置 Copilot Seat 的人員，並顯示實際取得的總人數。通訊錄僅供本次操作使用。</p>
+      <p class="cmd-sub">有 Copilot Seat 的帳號會標示並禁止移出；執行前會重新檢查 Seat 名單。Token 須可讀取 Copilot Seat，並具組織 Members: write 權限；操作帳號須為組織擁有者。移出會影響組織團隊與儲存庫存取權；透過企業團隊取得的間接成員資格可能仍保留。</p>
+      <div class="drop-zone" id="removeDirectoryZone" tabindex="0" role="button" aria-label="上傳目前全公司通訊錄 XLSX">
+        <input id="removeDirectory" type="file" accept=".xlsx" hidden>
+        <span class="zone-label">目前全公司通訊錄 XLSX</span>
+        <span class="zone-status" id="removeDirectoryStatus" role="status">拖曳或點擊上傳</span>
+        <span class="zone-drag">放開以載入</span>
+      </div>
+      <button id="removeCompare" class="cmd-btn" disabled>取得 GitHub 帳號並比對</button>
+      <div id="removeStatus" class="cmd-status" role="status">請先上傳通訊錄。</div>
+      <div class="table-wrapper">
+        <table><thead><tr><th>選取</th><th>GitHub 帳號</th><th>員工編號</th><th>原因</th><th>Copilot Seat</th><th>結果</th></tr></thead><tbody id="removeRows"></tbody></table>
+      </div>
+      <label><input id="removeSelectAll" type="checkbox" disabled> 全選待移除人員</label>
+      <div class="budget-field">
+        <label for="removeConfirmation">確認上方勾選名單後，輸入 REMOVE，將選取人員移出 IISI-Group</label>
+        <input id="removeConfirmation" autocomplete="off" spellcheck="false" disabled>
+      </div>
+      <button id="removeExecute" class="cmd-btn cmd-btn-danger" disabled>確認移出 IISI-Group（0 人）</button>
     </div>
   </div>
 
@@ -1616,11 +1642,12 @@ function setView(view) {
   document.getElementById('seatListContainer').style.display = view === 'seats' ? '' : 'none';
   document.getElementById('budgetContainer').style.display = view === 'budget' ? '' : 'none';
   document.getElementById('cmdContainer').style.display   = view === 'cmd'   ? '' : 'none';
+  document.getElementById('removeContainer').style.display = view === 'remove' ? '' : 'none';
 }
 
 /* 無任何可用分頁時：隱藏所有檢視與摘要列（避免顯示空白表頭） */
 function hideAllViews() {
-  ['tableContainer', 'chartContainer', 'distContainer', 'seatListContainer', 'budgetContainer', 'cmdContainer'].forEach(id =>
+  ['tableContainer', 'chartContainer', 'distContainer', 'seatListContainer', 'budgetContainer', 'cmdContainer', 'removeContainer'].forEach(id =>
     document.getElementById(id).style.display = 'none');
   document.getElementById('summary').style.display = 'none';
 }
@@ -2738,15 +2765,16 @@ function updateCmdTabVisibility() {
   document.querySelectorAll('#viewTabs .tab-btn').forEach(b => {
     const isAdmin = b.dataset.view === 'cmd' || b.dataset.view === 'budget';
     const isSeat = b.dataset.view === 'seats';
-    b.style.display = (isAdmin ? cmdShow : isSeat ? seatShow : dataShow) ? '' : 'none';
+    b.style.display = (b.dataset.view === 'remove' ? hasToken() : isAdmin ? cmdShow : isSeat ? seatShow : dataShow) ? '' : 'none';
   });
 
-  document.getElementById('viewTabs').style.display = (dataShow || seatShow || cmdShow) ? '' : 'none';
+  document.getElementById('viewTabs').style.display = (dataShow || seatShow || cmdShow || hasToken()) ? '' : 'none';
 
   /* 若目前所在分頁已被隱藏，切換到可用分頁；
      若無任何可用分頁則全部隱藏（使用報表 CSV 未上傳前不顯示表頭） */
   const dataViews = ['table', 'chart', 'dist'];
   const curHidden = (dataViews.includes(currentView) && !dataShow) ||
+                     (currentView === 'remove' && !hasToken()) ||
                      (currentView === 'seats' && !seatShow) ||
                      (currentView === 'budget' && !cmdShow) ||
                      (currentView === 'cmd' && !cmdShow);
@@ -2754,6 +2782,7 @@ function updateCmdTabVisibility() {
     if      (dataShow) setView('table');
     else if (seatShow) setView('seats');
     else if (cmdShow)  setView('budget');
+    else if (hasToken()) setView('remove');
     else               hideAllViews();
   } else {
     /* 權限探測完成後，還原目前可用分頁（可能曾在探測期間被暫時隱藏）。 */
@@ -3155,5 +3184,6 @@ document.querySelectorAll('thead th[data-col]').forEach(th => {
   });
 });
 </script>
+<script src="remove-organization.js"></script>
 </body>
 </html>
