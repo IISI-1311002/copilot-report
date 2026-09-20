@@ -215,15 +215,6 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .chart-controls .pool-amount { color: #16a34a; font-weight: 600; }
-.aic-presets { display: inline-flex; gap: 4px; margin-left: 2px; }
-.aic-preset {
-  background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1;
-  padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: background .15s, color .15s, border-color .15s;
-  font-variant-numeric: tabular-nums;
-}
-.aic-preset:hover { background: #e2e8f0; border-color: #94a3b8; }
-.aic-preset.active { background: #2563eb; color: #fff; border-color: #2563eb; }
 .chart-note {
   font-size: 12px;
   color: #9a3412;
@@ -917,11 +908,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
         <input type="number" id="seatInput" min="0" step="1">
       </label>
       <label>AIC 量
-        <input type="number" id="aicInput" min="0" step="100" value="3000">
-        <span class="aic-presets">
-          <button type="button" class="aic-preset" data-aic="1900">1900</button>
-          <button type="button" class="aic-preset" data-aic="3000">3000</button>
-        </span>
+        <input type="number" id="aicInput" min="0" step="100" value="1900">
       </label>
       <span class="pool-amount">總 Pool 使用金額：<b id="poolAmount">$0.00</b></span>
       <span class="chart-summary" id="chartSummary" style="display:none;"></span>
@@ -1667,27 +1654,12 @@ function dayKey(d) {
 const AIC_PER_USD = 100;   // 1 USD = 100 AICs
 /* 每位 Seat 實際的 AIC 配額（基準值）。「使用量明細」摘要與匯出報表皆以此為準，
    不受「累積趨勢圖」AIC 量輸入框（僅供試算）影響。 */
-const ACTUAL_AIC_QUOTA = 3000;
+const ACTUAL_AIC_QUOTA = 1900;
 
 /* Pool 設定：seat 數預設為使用者人數，使用者改過後不再自動覆寫 */
 let seatTouched = false;
 document.getElementById('seatInput').addEventListener('input', () => { seatTouched = true; renderChart(); });
-document.getElementById('aicInput').addEventListener('input', () => { renderChart(); syncAicPresets(); });
-
-/* AIC 量常用值快速選擇（1900 / 3000）；輸入框仍可自行輸入任意值 */
-function syncAicPresets() {
-  const v = parseFloat(document.getElementById('aicInput').value);
-  document.querySelectorAll('.aic-preset').forEach(b =>
-    b.classList.toggle('active', parseFloat(b.dataset.aic) === v));
-}
-document.querySelectorAll('.aic-preset').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.getElementById('aicInput').value = btn.dataset.aic;
-    syncAicPresets();
-    renderChart();
-  });
-});
-syncAicPresets();
+document.getElementById('aicInput').addEventListener('input', () => { renderChart(); });
 
 function renderChart() {
   const note = document.getElementById('chartNote');
