@@ -973,7 +973,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
         <div class="cmd-title">設定使用者預算</div>
         <div class="cmd-sub">
           每行輸入一筆 7 碼員工編號，系統會轉成 <code>IISI-員工編號</code> GitHub 帳號，
-          並透過 GitHub API 設定每位使用者的 Copilot AI credits 月預算。
+          並透過 GitHub API 設定每位使用者的 Copilot AI credits 月預算；已有預算時更新，尚未設定時新增。
         </div>
       </div>
       <div class="budget-form">
@@ -2776,28 +2776,30 @@ function parseBudgetEmployeeIds(raw) {
   return lines;
 }
 
-/* 建立單一 user scope Copilot AI credits Budget。 */
-async function createUserBudget(token, username, amount) {
+/* 已有 Budget 時依 ID 更新，否則建立 user scope Copilot AI credits Budget。 */
+async function saveUserBudget(token, username, amount, budgetId = null) {
+  const isUpdate = budgetId !== null;
+  const body = { budget_amount: amount, prevent_further_usage: true };
+  if (!isUpdate) {
+    Object.assign(body, {
+      budget_scope: 'user',
+      budget_entity_name: '',
+      budget_type: 'BundlePricing',
+      budget_product_sku: 'ai_credits',
+      user: username
+    });
+  }
   const res = await fetch(
-    `https://api.github.com/organizations/${GH_ORG}/settings/billing/budgets`,
+    `https://api.github.com/organizations/${GH_ORG}/settings/billing/budgets${isUpdate ? `/${encodeURIComponent(budgetId)}` : ''}`,
     {
-      method: 'POST',
+      method: isUpdate ? 'PATCH' : 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github+json',
         'X-GitHub-Api-Version': GH_API_VER,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        budget_amount: amount,
-        prevent_further_usage: true,
-        budget_scope: 'user',
-        budget_entity_name: '',
-        budget_type: 'BundlePricing',
-        budget_product_sku: 'ai_credits',
-        budget_alerting: { will_alert: false, alert_recipients: [] },
-        user: username
-      })
+      body: JSON.stringify(body)
     }
   );
   if (!res.ok) {
@@ -2868,15 +2870,34 @@ document.getElementById('setBudgetsBtn').addEventListener('click', async () => {
   status.className = 'cmd-status';
   output.value = '';
 
+  let existingBudgets;
+  status.textContent = '正在檢查既有預算…';
+  try {
+    existingBudgets = await fetchAllBudgets(token);
+  } catch (err) {
+    status.className = 'cmd-status err';
+    status.textContent = `✗ 無法取得既有預算，已停止設定：${err.message}`;
+    btn.disabled = false;
+    return;
+  }
+
   const resultLines = [];
   let ok = 0, fail = 0;
   for (let i = 0; i < users.length; i++) {
     const username = users[i];
     status.textContent = `設定中…（${i + 1}/${users.length}）${username}`;
     try {
-      await createUserBudget(token, username, amount);
+      const matches = existingBudgets.filter(b =>
+        b.budget_scope === 'user' &&
+        typeof b.user === 'string' && b.user.toLowerCase() === username.toLowerCase() &&
+        (b.budget_product_sku === 'ai_credits' ||
+          (Array.isArray(b.budget_product_skus) && b.budget_product_skus.includes('ai_credits')))
+      );
+      if (matches.length > 1) throw new Error('找到多筆 AI credits 預算，請先確認既有設定。');
+      const existing = matches[0];
+      await saveUserBudget(token, username, amount, existing ? existing.id : null);
       ok++;
-      resultLines.push(`✓ ${username} — $${amount} USD`);
+      resultLines.push(`✓ ${username} — 已${existing ? '更新' : '新增'} $${amount} USD`);
     } catch (err) {
       fail++;
       resultLines.push(`✗ ${username} — ${err.message}`);
