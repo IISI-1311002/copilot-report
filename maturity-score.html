@@ -74,7 +74,8 @@ td.c,th.c{text-align:center}
 .kv b{display:block;color:var(--ink);font-size:.95rem;font-weight:500}
 .rec-body{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:20px;align-items:start}
 @media (max-width:820px){.rec-body{grid-template-columns:1fr}}
-.dims td:first-child{white-space:nowrap}
+.dims .dim-row td:first-child{white-space:nowrap}
+.detail td{white-space:normal}
 .next{color:var(--muted);font-size:.84rem;min-width:12em}
 .qs{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px}
 .q{font-family:var(--f-mono);font-size:.68rem;padding:0 4px;border-radius:3px;background:var(--soft);color:var(--muted)}
@@ -82,7 +83,26 @@ td.c,th.c{text-align:center}
 .radar svg{width:100%;height:auto;display:block}
 .radar .note{font-size:.8rem;color:var(--muted);text-align:center;margin:4px 0 0}
 .empty{padding:28px;text-align:center;color:var(--muted);background:var(--paper);border:1px solid var(--line);border-radius:12px}
-footer{color:var(--muted);font-size:.82rem;max-width:80ch}
+footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:1px solid var(--line);padding-top:14px;margin-top:8px}
+.dim-row{cursor:pointer}
+.dim-row:hover td{background:var(--soft)}
+.dim-btn{all:unset;cursor:pointer;display:inline-flex;gap:6px;align-items:center;white-space:nowrap}
+.dim-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:3px}
+.dim-btn .chev{display:inline-block;width:.9em;color:var(--muted);transition:transform .15s}
+.dim-row.open .chev{transform:rotate(90deg)}
+.detail td{background:var(--soft);padding:12px 14px}
+.qa{display:flex;flex-direction:column;gap:12px}
+.qa-item{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px}
+.qa-id{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);padding-top:2px}
+.qa-q{font-weight:500;font-size:.88rem}
+.qa-a{grid-column:2;font-size:.86rem;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.qa-a span:last-child{min-width:0;flex:1 1 20em}
+.ev{border-left:3px solid var(--accent);padding:6px 10px;background:var(--paper);border-radius:0 6px 6px 0;font-size:.85rem;white-space:pre-wrap;overflow-wrap:anywhere}
+.ev b{display:block;font-size:.75rem;letter-spacing:.08em;color:var(--muted);font-weight:500;margin-bottom:2px}
+.qa-item .ev{grid-column:2}
+.feedback{border-top:1px solid var(--line);padding-top:12px}
+.feedback p{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;max-width:90ch}
+.feedback .none{color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.rec{animation:in .3s ease both}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
 </style>
 
@@ -116,7 +136,7 @@ footer{color:var(--muted);font-size:.82rem;max-width:80ch}
   <section class="records" id="records"></section>
 
   <footer>
-    計分規則（同模型「總覽」）：L1～L5 對應 1～5 分；「不適用」視為已完成但不計分，空白與無法辨識的答案視為未完成。構面須全部題目完成才計平均，整個構面不適用時不給分；整體分數以全部適用題目平均，須全部題目完成才顯示。階段依未四捨五入的平均分數判定，畫面顯示至小數第 2 位。改善優先順序標示全部完成後分數最低的構面。雷達圖固定 0～5 刻度，須六構面皆有分數才顯示。
+    計分規則：L1～L5 對應 1～5 分；「不適用」視為已完成但不計分，空白與無法辨識的答案視為未完成。構面須全部題目完成才計平均，整個構面不適用時不給分；整體分數以全部適用題目平均，須全部題目完成才顯示。階段依未四捨五入的平均分數判定，畫面顯示至小數第 2 位。改善優先順序標示全部完成後分數最低的構面。雷達圖固定 0～5 刻度，須六構面皆有分數才顯示。
   </footer>
 </div>
 
@@ -155,11 +175,21 @@ function scoreAnswer(raw){
 }
 
 function detect(header){
-  const cols = {q:{}, name:-1, team:-1, size:-1, id:-1};
+  const cols = {q:{}, qev:{}, dimEv:{}, fb:-1, start:-1, end:-1, name:-1, team:-1, size:-1, id:-1};
   header.forEach((h,i)=>{
     const s = String(h ?? '').trim();
     const m = s.match(/^【\s*([A-F])\s*(\d+)\s*】/);
-    if (m && !/佐證|補充/.test(s.slice(0,12))) { (cols.q[m[1]] ??= []).push({id:m[1]+m[2], i}); return; }
+    if (m) {
+      const id = m[1]+m[2];
+      if (/佐證|補充/.test(s.slice(0,12))) cols.qev[id] = i;
+      else (cols.q[m[1]] ??= []).push({id, i, text: s.replace(/^【[^】]*】\s*/,'').split('\n')[0]});
+      return;
+    }
+    const dm = s.match(/^【\s*構面\s*([A-F])\s*】/);
+    if (dm) { cols.dimEv[dm[1]] = i; return; }
+    if (cols.fb < 0 && /意見回饋/.test(s)) { cols.fb = i; return; }
+    if (s === '開始時間') { cols.start = i; return; }
+    if (s === '完成時間') { cols.end = i; return; }
     if (s === '名稱' || s === '姓名') cols.name = i;
     else if (cols.team < 0 && /團隊名稱|部門|團隊／專案|團隊\/專案/.test(s)) cols.team = i;
     else if (cols.size < 0 && /人數/.test(s)) cols.size = i;
@@ -170,7 +200,9 @@ function detect(header){
 
 function evaluate(row, cols){
   const dims = DIMS.map(d=>{
-    const qs = (cols.q[d.k] || []).map(q=>({id:q.id, r:scoreAnswer(row[q.i])}));
+    const qs = (cols.q[d.k] || []).map(q=>({id:q.id, text:q.text, raw:String(row[q.i] ?? '').trim(),
+      ev: cols.qev[q.id]!=null ? String(row[cols.qev[q.id]] ?? '').trim() : '', r:scoreAnswer(row[q.i])}));
+    const dimEv = cols.dimEv[d.k]!=null ? String(row[cols.dimEv[d.k]] ?? '').trim() : '';
     const nums = qs.filter(q=>q.r.t==='num').map(q=>q.r.v);
     const done = qs.filter(q=>q.r.t==='num' || q.r.t==='na').length;
     const total = qs.length;
@@ -179,7 +211,7 @@ function evaluate(row, cols){
     if (!complete){ stage='待完成'; next='先完成此構面'; }
     else if (!nums.length){ stage='不適用'; next='此構面不適用，不列入計分'; }
     else { avg = nums.reduce((a,b)=>a+b,0)/nums.length; stage='L'+xround(avg); next=d.next[xround(avg)-1]; }
-    return {...d, qs, nums, done, total, complete, avg, stage, next};
+    return {...d, qs, dimEv, nums, done, total, complete, avg, stage, next};
   });
   const totalQ = dims.reduce((a,d)=>a+d.total,0);
   const doneQ = dims.reduce((a,d)=>a+d.done,0);
@@ -226,28 +258,68 @@ function radarSVG(dims, idx){
 
 let RESULTS = [];
 
-function render(aoa){
+function answerText(q){
+  if (q.r.t==='blank') return '（未作答）';
+  if (q.r.t==='na') return '不適用';
+  return q.raw.replace(/^【[^】]*】\s*/,'');
+}
+function detailHTML(d){
+  const items = d.qs.map(q=>{
+    const lv = q.r.t==='num' ? `<span class="pill lv${q.r.v}">L${q.r.v} ${STAGES[q.r.v-1].split(' ').slice(1).join(' ')}</span>`
+      : `<span class="pill lvx">${q.r.t==='na'?'不適用':q.r.t==='blank'?'未作答':'無法辨識'}</span>`;
+    return `<div class="qa-item"><span class="qa-id">${q.id}</span><span class="qa-q">${esc(q.text)}</span>
+      <div class="qa-a">${lv}<span>${esc(answerText(q))}</span></div>
+      ${q.ev?`<div class="ev"><b>佐證／補充</b>${esc(q.ev)}</div>`:''}</div>`;
+  }).join('');
+  const ev = `<div class="ev"><b>構面佐證／補充</b>${d.dimEv?esc(d.dimEv):'<span style="color:var(--muted)">（未填寫）</span>'}</div>`;
+  return `<div class="qa">${items}${ev}</div>`;
+}
+document.addEventListener('click', e=>{
+  const row = e.target.closest('.dim-row'); if (!row) return;
+  const det = document.getElementById(row.dataset.target); if (!det) return;
+  det.hidden = !det.hidden;
+  row.classList.toggle('open', !det.hidden);
+  row.querySelector('.dim-btn')?.setAttribute('aria-expanded', String(!det.hidden));
+});
+
+function toDate(v){
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (typeof v === 'number' && isFinite(v)) return new Date(Math.round((v - 25569) * 86400000));
+  const s = String(v ?? '').trim(); if (!s) return null;
+  const d = new Date(s.replace(/-/g,'/'));
+  return isNaN(d) ? null : d;
+}
+function minutesBetween(a, b){
+  const s = toDate(a), e = toDate(b);
+  if (!s || !e) return null;
+  const m = Math.round((e - s) / 60000);
+  return m >= 0 ? m : null;
+}
+function render(aoa, rawAoa){
+  rawAoa = rawAoa || aoa;
   const msg = document.getElementById('msg'); msg.hidden = true;
   const header = aoa[0] || [];
   const cols = detect(header);
   const nQ = Object.values(cols.q).reduce((a,v)=>a+v.length,0);
   if (!nQ){ msg.textContent='找不到題目欄位。請確認檔案第一列是問卷題目，且題目以【A1】、【B2】這類題號開頭。'; msg.hidden=false; return; }
-  const rows = aoa.slice(1).filter(r => r.some(v => String(v ?? '').trim() !== ''));
+  const idx = aoa.slice(1).map((r,k)=>k+1).filter(k => aoa[k].some(v => String(v ?? '').trim() !== ''));
+  const rows = idx.map(k => aoa[k]);
   RESULTS = rows.map((r,n)=>({
     n: n+1,
     id: cols.id>=0 ? r[cols.id] : n+1,
     name: cols.name>=0 ? r[cols.name] : `第 ${n+1} 筆`,
     team: cols.team>=0 ? r[cols.team] : '',
     size: cols.size>=0 ? r[cols.size] : '',
+    mins: (cols.start>=0 && cols.end>=0) ? minutesBetween((rawAoa[idx[n]]||[])[cols.start], (rawAoa[idx[n]]||[])[cols.end]) : null,
+    feedback: cols.fb>=0 ? String(r[cols.fb] ?? '').trim() : '',
     ...evaluate(r, cols)
   }));
 
   document.getElementById('sumbox').hidden = false;
   // 總表
   const sum = document.getElementById('summary');
-  sum.innerHTML = `<thead><tr><th>#</th><th>填答人</th><th>團隊</th><th class="c">完成</th><th class="c">整體</th>${DIMS.map(d=>`<th class="c">${d.k}</th>`).join('')}</tr></thead><tbody>` +
+  sum.innerHTML = `<thead><tr><th>#</th><th>填答人</th><th>團隊</th><th class="c">整體</th>${DIMS.map(d=>`<th class="c">${d.k}</th>`).join('')}</tr></thead><tbody>` +
     RESULTS.map(r=>`<tr><td class="num">${r.n}</td><td><a href="#rec-${r.n}">${esc(r.name)}</a></td><td>${esc(r.team)}</td>
-      <td class="c num">${r.doneQ}/${r.totalQ}</td>
       <td class="c">${r.overall!==null?`<span class="cell"><span class="num">${fmt(r.overall)}</span><span class="pill ${lvClass(r.overallStage)}">L${xround(r.overall)}</span></span>`:`<span class="lvx">—</span>`}</td>
       ${r.dims.map(d=>`<td class="c">${d.avg!==null?`<span class="num ${lvClass(d.stage)}" style="font-weight:600">${fmt(d.avg)}</span>`:`<span class="lvx">${d.stage}</span>`}</td>`).join('')}</tr>`).join('') + '</tbody>';
 
@@ -258,30 +330,30 @@ function render(aoa){
   <article class="rec" id="rec-${r.n}">
     <div class="rec-head">
       <div class="who">
-        <div class="eyebrow">回覆 #${r.n}${r.id!==''?` · ID ${esc(r.id)}`:''}</div>
+        <div class="eyebrow">回覆 #${r.n}${r.mins!==null?` · 填寫 <span class="num">${r.mins}</span> 分鐘`:''}</div>
         <h2>${esc(r.name)}</h2>
         <div class="meta">${esc(r.team)}${r.size?` · ${esc(r.size)}`:''}</div>
       </div>
       <div class="score">
-        <div class="kv">已完成題數<b class="num">${r.doneQ} ／ ${r.totalQ} 題</b></div>
         <div class="kv">目前 AI 成熟度階段<b><span class="pill ${lvClass(r.overallStage)}">${esc(r.overallStage)}</span></b></div>
         <div class="big">${r.overall!==null?fmt(r.overall):'—'}<small> / 5</small></div>
       </div>
     </div>
     <div class="rec-body">
       <div class="scroll"><table class="dims">
-        <thead><tr><th>構面</th><th class="c">已完成</th><th class="c">平均</th><th class="c">階段</th><th>下一步建議</th></tr></thead>
-        <tbody>${r.dims.map(d=>`<tr>
-          <td>${esc(d.name)}${d.priority?`<br><span class="prio">優先改善（最低分）</span>`:''}
-            <div class="qs">${d.qs.map(q=>`<span class="q" title="${q.id}">${q.id}:${q.r.t==='num'?'L'+q.r.v:q.r.t==='na'?'NA':q.r.t==='blank'?'空':'錯'}</span>`).join('')}</div></td>
-          <td class="c num">${d.done}/${d.total}</td>
+        <thead><tr><th>構面（點擊展開答題）</th><th class="c">平均</th><th class="c">階段</th><th>下一步建議</th></tr></thead>
+        <tbody>${r.dims.map((d,di)=>`<tr class="dim-row" data-target="det-${r.n}-${di}">
+          <td><button type="button" class="dim-btn" aria-expanded="false" aria-controls="det-${r.n}-${di}"><span class="chev">▸</span>${esc(d.name)}</button>${d.priority?`<br><span class="prio">優先改善（最低分）</span>`:''}
+            <div class="qs">${d.qs.map(q=>`<span class="q">${q.id}:${q.r.t==='num'?'L'+q.r.v:q.r.t==='na'?'NA':q.r.t==='blank'?'空':'錯'}</span>`).join('')}</div></td>
           <td class="c num" style="font-weight:600">${d.avg!==null?fmt(d.avg):'—'}</td>
           <td class="c"><span class="pill ${lvClass(d.stage)}">${d.stage}</span></td>
-          <td class="next">${esc(d.next)}</td></tr>`).join('')}</tbody>
+          <td class="next">${esc(d.next)}</td></tr>
+          <tr class="detail" id="det-${r.n}-${di}" hidden><td colspan="4">${detailHTML(d)}</td></tr>`).join('')}</tbody>
       </table></div>
       <div class="radar">${r.radar?radarSVG(r.dims):`<div class="empty">雷達圖待六構面皆有分數後顯示</div>`}
         <p class="note">${r.radar?'各構面適用題目平均，固定 0～5 刻度':'構面待完成或全部不適用時不繪製'}</p></div>
     </div>
+    <div class="feedback"><div class="eyebrow">意見回饋／建議事項</div>${r.feedback?`<p>${esc(r.feedback)}</p>`:`<p class="none">（未填寫）</p>`}</div>
   </article>`).join('');
 }
 
@@ -293,8 +365,9 @@ function loadFile(f){
       const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
       const ws = wb.Sheets[wb.SheetNames.find(n=>n==='Sheet1') || wb.SheetNames[0]];
       const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
+      const rawAoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
       document.getElementById('src').textContent = `目前資料：${f.name}（${Math.max(aoa.length-1,0)} 列）`;
-      render(aoa);
+      render(aoa, rawAoa);
     }catch(err){ msg.textContent = '無法讀取這個檔案：' + err.message + '。請改用問卷平台匯出的 .xlsx。'; msg.hidden=false; }
   };
   fr.readAsArrayBuffer(f);
@@ -306,8 +379,8 @@ const drop = document.getElementById('drop');
 drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
 
 document.getElementById('copy').addEventListener('click', e=>{
-  const head = ['#','ID','填答人','團隊','人數','已完成題數','整體平均','整體階段', ...DIMS.flatMap(d=>[d.name+' 平均', d.name+' 階段'])];
-  const lines = [head, ...RESULTS.map(r=>[r.n,r.id,r.name,r.team,r.size,`${r.doneQ}/${r.totalQ}`, r.overall!==null?fmt(r.overall):'', r.overallStage,
+  const head = ['#','ID','填答人','團隊','人數','整體平均','整體階段', ...DIMS.flatMap(d=>[d.name+' 平均', d.name+' 階段'])];
+  const lines = [head, ...RESULTS.map(r=>[r.n,r.id,r.name,r.team,r.size, r.overall!==null?fmt(r.overall):'', r.overallStage,
     ...r.dims.flatMap(d=>[d.avg!==null?fmt(d.avg):'', d.stage])])].map(a=>a.map(v=>String(v??'').replace(/[\t\n]/g,' ')).join('\t')).join('\n');
   const btn = e.currentTarget, old = btn.textContent;
   const done = ok => { btn.textContent = ok ? '已複製' : '無法複製，請改用手動選取'; setTimeout(()=>btn.textContent=old, 1800); };
