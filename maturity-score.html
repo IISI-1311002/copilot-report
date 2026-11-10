@@ -104,20 +104,79 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
 .feedback p{margin:4px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;max-width:90ch}
 .feedback .none{color:var(--muted)}
 @media (prefers-reduced-motion:no-preference){.rec{animation:in .3s ease both}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
+
+.load-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;width:100%}
+.load-row .btn{min-width:10.5em;text-align:center}
+.filters{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:flex-end;padding:14px 16px;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
+.fld{display:flex;flex-direction:column;gap:3px;font-size:.78rem;color:var(--muted);min-width:0;flex:1 1 170px}
+.fld select{font:inherit;font-size:.9rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:100%}
+.tools{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;width:100%}
+.count{color:var(--muted);font-size:.88rem;flex:1 1 160px}
+.chk{font-size:.86rem;color:var(--muted);display:inline-flex;gap:6px;align-items:center}
+.org{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.org-chip{font-size:.84rem;padding:1px 9px;border-radius:6px;background:var(--soft)}
+.org-chip i{font-style:normal;color:var(--muted);font-size:.74rem;margin-right:6px}
+.org-miss{font-size:.84rem;color:var(--warn)}
+.feedback + .feedback{border-top:0;padding-top:0}
+.print-only{display:none}
+
+/* 輸出 PDF：以瀏覽器列印，固定淺色、每筆評估單另起一頁 */
+@page{size:A4;margin:12mm}
+@media print{
+  :root,:root[data-theme="dark"],:root:not([data-theme="light"]){
+    --bg:#ffffff; --paper:#ffffff; --ink:#18232b; --muted:#5d6b75; --line:#d9e0e4; --soft:#eaeff2;
+    --accent:#0f6e7a; --accent-soft:rgba(15,110,122,.16);
+    --l1:#b8573c; --l2:#c48a1c; --l3:#4e8a3e; --l4:#1f7a8c; --l5:#3d4fa8;
+    --warn-bg:#fbefe9; --warn:#a2452b; color-scheme:light}
+  body{background:#fff;font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .wrap{max-width:none;padding:0;gap:16px}
+  .loader,.filters{display:none!important}
+  .print-only{display:block;color:var(--muted);font-size:.9rem;margin-top:4px}
+  .scroll{overflow:visible}
+  .summary td,.summary th{white-space:normal;padding:5px 6px;font-size:.8rem}
+  .rec{animation:none;break-before:page;border:0;padding:0}
+  .rec-body{grid-template-columns:1fr;gap:10px}
+  .radar{order:-1;max-width:400px}
+  html.print-detail .detail[hidden]{display:table-row!important}
+  .dims .dim-row td:first-child{white-space:normal}
+  .dim-btn{white-space:normal}
+  .chev{display:none!important}
+  tr,.qa-item,.ev,.radar,footer{break-inside:avoid}
+}
 </style>
 
 <div class="wrap">
   <header>
     <div class="eyebrow">AI 輔助軟體開發與維運成熟度模型</div>
     <h1>IISI AI 成熟度計分</h1>
+    <div class="print-only" id="printinfo"></div>
   </header>
 
   <section class="loader" id="drop">
-    <label class="btn primary" for="file">選擇問卷回覆檔</label>
-    <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
-    <span class="src" id="src">將自評問卷 xlsx 拖曳到這裡</span>
-    <button class="btn" id="copy" type="button">複製結果表（可貼到 Excel）</button>
+    <div class="load-row">
+      <label class="btn primary" for="file">選擇問卷回覆檔</label>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+      <span class="src" id="src">將自評問卷或通訊錄 xlsx 拖曳到這裡（自動判斷）</span>
+    </div>
+    <div class="load-row">
+      <label class="btn" for="dirfile">上傳通訊錄</label>
+      <input type="file" id="dirfile" accept=".xlsx,.xls" hidden>
+      <span class="src" id="dirsrc">尚未上傳通訊錄，無法顯示部門／處別／組別</span>
+    </div>
     <div class="msg" id="msg" hidden></div>
+  </section>
+
+  <section class="filters" id="filters" hidden aria-label="篩選與輸出">
+    <label class="fld">部門<select id="f-dept"></select></label>
+    <label class="fld">處別<select id="f-div"></select></label>
+    <label class="fld">組別<select id="f-grp"></select></label>
+    <div class="tools">
+      <span class="count" id="count"></span>
+      <button class="btn" id="reset" type="button">清除篩選</button>
+      <button class="btn" id="copy" type="button">複製結果表（可貼到 Excel）</button>
+      <label class="chk"><input type="checkbox" id="pdfdetail">PDF 包含各題答題明細</label>
+      <button class="btn primary" id="pdf" type="button">輸出 PDF</button>
+    </div>
   </section>
 
   <section class="rules" aria-label="階段對照">
@@ -136,8 +195,7 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   <section class="records" id="records"></section>
 
   <footer>
-    計分規則：L1～L5 對應 1～5 分；「不適用」視為已完成但不計分，空白與無法辨識的答案視為未完成。構面須全部題目完成才計平均，整個構面不適用時不給分；整體分數以全部適用題目平均，須全部題目完成才顯示。階段依未四捨五入的平均分數判定，畫面顯示至小數第 2 位。改善優先順序標示全部完成後分數最低的構面。雷達圖固定 0～5 刻度，須六構面皆有分數才顯示。
-  </footer>
+    計分規則：L1～L5 對應 1～5 分；「不適用」視為已完成但不計分，空白與無法辨識的答案視為未完成。構面須全部題目完成才計平均，整個構面不適用時不給分；整體分數以全部適用題目平均，須全部題目完成才顯示。階段依未四捨五入的平均分數判定，畫面顯示至小數第 2 位。改善優先順序標示全部完成後分數最低的構面。雷達圖固定 0～5 刻度，須六構面皆有分數才顯示。  </footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -165,17 +223,19 @@ const fmt = v => v.toFixed(2);
 function scoreAnswer(raw){
   const s = String(raw ?? '').trim();
   if (!s) return {t:'blank'};
-  if (s === '不適用' || s.startsWith('【不適用') ) return {t:'na'};
-  const m = s.match(/^【?\s*L([1-5])/i) || s.match(/^L([1-5])\b/i);
+  // 新版問卷的選項以【團隊導入】這類階段名稱開頭；舊版以 L1～L5 開頭
+  const b = s.match(/^【\s*([^】]*)】/);
+  if (s === '不適用' || (b && /不適用/.test(b[1]))) return {t:'na'};
+  const head = b ? b[1] : s.slice(0, 24);
+  const m = head.match(/^\s*L([1-5])/i);
   if (m) return {t:'num', v:+m[1]};
-  const head = s.slice(0, 24);
   const map = [[/個人試用/,1],[/團隊導入/,2],[/流程整合/,3],[/量化(與)?受控/,4],[/AI[-\s]?native|Agentic/i,5]];
   for (const [re,v] of map) if (re.test(head)) return {t:'num', v};
   return {t:'err'};
 }
 
 function detect(header){
-  const cols = {q:{}, qev:{}, dimEv:{}, fb:-1, start:-1, end:-1, name:-1, team:-1, size:-1, id:-1};
+  const cols = {q:{}, qev:{}, dimEv:{}, fb:-1, start:-1, end:-1, name:-1, team:-1, size:-1, id:-1, email:-1, tech:-1, hard:-1, plan:-1};
   header.forEach((h,i)=>{
     const s = String(h ?? '').trim();
     const m = s.match(/^【\s*([A-F])\s*(\d+)\s*】/);
@@ -187,12 +247,16 @@ function detect(header){
     }
     const dm = s.match(/^【\s*構面\s*([A-F])\s*】/);
     if (dm) { cols.dimEv[dm[1]] = i; return; }
+    if (cols.hard < 0 && /^【\s*目前困難/.test(s)) { cols.hard = i; return; }
+    if (cols.plan < 0 && /^【\s*建議改善/.test(s)) { cols.plan = i; return; }
     if (cols.fb < 0 && /意見回饋/.test(s)) { cols.fb = i; return; }
     if (s === '開始時間') { cols.start = i; return; }
     if (s === '完成時間') { cols.end = i; return; }
     if (s === '名稱' || s === '姓名') cols.name = i;
+    else if (cols.email < 0 && /^(電子郵件|E-?mail)/i.test(s)) cols.email = i;
     else if (cols.team < 0 && /團隊名稱|部門|團隊／專案|團隊\/專案/.test(s)) cols.team = i;
-    else if (cols.size < 0 && /人數/.test(s)) cols.size = i;
+    else if (cols.size < 0 && /人數|多少名/.test(s)) cols.size = i;
+    else if (cols.tech < 0 && /開發技術/.test(s)) cols.tech = i;
     else if (s === 'ID') cols.id = i;
   });
   return cols;
@@ -304,35 +368,141 @@ function render(aoa, rawAoa){
   if (!nQ){ msg.textContent='找不到題目欄位。請確認檔案第一列是問卷題目，且題目以【A1】、【B2】這類題號開頭。'; msg.hidden=false; return; }
   const idx = aoa.slice(1).map((r,k)=>k+1).filter(k => aoa[k].some(v => String(v ?? '').trim() !== ''));
   const rows = idx.map(k => aoa[k]);
+  const text = (r,c) => c>=0 ? String(r[c] ?? '').trim() : '';
+  HAS = {hard: cols.hard>=0, plan: cols.plan>=0};
   RESULTS = rows.map((r,n)=>({
     n: n+1,
     id: cols.id>=0 ? r[cols.id] : n+1,
     name: cols.name>=0 ? r[cols.name] : `第 ${n+1} 筆`,
+    emp: empIdOf(text(r, cols.email)),          // 電子郵件 @ 前為員工編號
     team: cols.team>=0 ? r[cols.team] : '',
     size: cols.size>=0 ? r[cols.size] : '',
+    tech: text(r, cols.tech).split(/[;；]/).map(s=>s.trim()).filter(Boolean).join('、'),
     mins: (cols.start>=0 && cols.end>=0) ? minutesBetween((rawAoa[idx[n]]||[])[cols.start], (rawAoa[idx[n]]||[])[cols.end]) : null,
-    feedback: cols.fb>=0 ? String(r[cols.fb] ?? '').trim() : '',
+    hard: text(r, cols.hard), plan: text(r, cols.plan),
+    feedback: text(r, cols.fb),
     ...evaluate(r, cols)
   }));
+  LOADED = true;
+  applyOrg();
+  draw();
+}
 
+// ── 通訊錄：員工編號 → [部門, 處別, 組別]，快取於 localStorage，重新上傳才更新 ──
+const DIR_KEY = 'iisi.maturity.directory.v1';
+const ORG_KEYS = ['dept','div','grp'];
+const ORG_LABEL = {dept:'部門', div:'處別', grp:'組別'};
+const ALL = '__all__';
+let DIR = null, LOADED = false, HAS = {hard:false, plan:false};
+const FILTER = {dept:ALL, div:ALL, grp:ALL};
+const normCell = v => String(v ?? '').replace(/\s+/g,'').trim();
+const padEmp = id => /^\d{1,6}$/.test(id) ? id.padStart(7,'0') : id;
+function empIdOf(email){
+  const m = String(email ?? '').trim().match(/^([^@\s]+)@/);
+  return m ? padEmp(m[1]) : '';
+}
+function parseDirectory(wb){
+  const rows = {}; let found = false;
+  for (const name of wb.SheetNames){
+    const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, defval:'', raw:false});
+    const hi = aoa.slice(0,30).findIndex(r => r.some(v => normCell(v)==='員工編號'));
+    if (hi < 0) continue;
+    const h = aoa[hi].map(normCell);
+    const c = {id:h.indexOf('員工編號'), dept:h.indexOf('部門'), div:h.indexOf('處別'), grp:h.indexOf('組別')};
+    if (c.dept < 0) continue;
+    found = true;
+    for (const r of aoa.slice(hi+1)){
+      const id = padEmp(normCell(r[c.id]));
+      if (!id) continue;
+      rows[id] = [c.dept, c.div, c.grp].map(i => i>=0 ? String(r[i] ?? '').trim() : '');
+    }
+  }
+  return found ? rows : null;
+}
+function showDirStatus(){
+  const el = document.getElementById('dirsrc');
+  if (!DIR){ el.textContent = '尚未上傳通訊錄，無法顯示部門／處別／組別'; return; }
+  const at = new Date(DIR.at);
+  el.textContent = `通訊錄：${DIR.file}（${Object.keys(DIR.rows).length} 人，${isNaN(at)?'':at.toLocaleString('zh-TW',{hour12:false})+' 上傳，'}已快取於此瀏覽器）`;
+}
+function loadDirCache(){
+  try {
+    const d = JSON.parse(localStorage.getItem(DIR_KEY) || 'null');
+    if (d && d.rows && typeof d.rows === 'object') DIR = d;
+  } catch { /* 無法讀取快取時視為未上傳 */ }
+  showDirStatus();
+}
+function setDirectory(rows, fileName){
+  DIR = {file:fileName, at:new Date().toISOString(), rows};
+  let cached = true;
+  try { localStorage.setItem(DIR_KEY, JSON.stringify(DIR)); } catch { cached = false; }
+  showDirStatus();
+  if (!cached){
+    const msg = document.getElementById('msg');
+    msg.textContent = '通訊錄已套用，但這個瀏覽器無法寫入快取，下次開啟需重新上傳。'; msg.hidden = false;
+  }
+  if (LOADED){ applyOrg(); draw(); }
+}
+function applyOrg(){
+  RESULTS.forEach(r=>{
+    const hit = DIR && r.emp ? DIR.rows[r.emp] : null;
+    r.org = hit ? {dept:hit[0], div:hit[1], grp:hit[2], miss:false}
+                : {dept: DIR ? '（通訊錄查無）' : '（未上傳通訊錄）', div:'', grp:'', miss:true};
+  });
+}
+const visible = () => RESULTS.filter(r => ORG_KEYS.every(k => FILTER[k]===ALL || r.org[k]===FILTER[k]));
+function filterText(){
+  const parts = ORG_KEYS.filter(k=>FILTER[k]!==ALL).map(k=>`${ORG_LABEL[k]}：${FILTER[k] || '（無）'}`);
+  return parts.length ? parts.join('　') : '全部';
+}
+function drawFilters(){
+  let pool = RESULTS;
+  ORG_KEYS.forEach(k=>{
+    const opts = [...new Set(pool.map(r=>r.org[k]))].sort((a,b)=>a.localeCompare(b,'zh-Hant'));
+    if (FILTER[k]!==ALL && !opts.includes(FILTER[k])) FILTER[k] = ALL;
+    const sel = document.getElementById('f-'+k);
+    sel.innerHTML = `<option value="${ALL}">全部（${pool.length}）</option>` + opts.map(o=>
+      `<option value="${esc(o)}">${esc(o || '（無）')}（${pool.filter(r=>r.org[k]===o).length}）</option>`).join('');
+    sel.value = FILTER[k];
+    if (FILTER[k]!==ALL) pool = pool.filter(r=>r.org[k]===FILTER[k]);
+  });
+}
+function orgHTML(r){
+  if (r.org.miss) return `<div class="org"><span class="org-miss">${DIR ? `通訊錄查無員工編號 ${esc(r.emp || '（問卷無電子郵件）')}` : '尚未上傳通訊錄'}</span></div>`;
+  return `<div class="org"><span class="org-chip">${esc(orgPath(r))}</span></div>`;
+}
+// 部/處/組：沒有處或組就不顯示該段
+const orgPath = r => ORG_KEYS.map(k=>r.org[k]).filter(Boolean).join(' / ');
+const noteHTML = (title, v) => `<div class="feedback"><div class="eyebrow">${title}</div>${v?`<p>${esc(v)}</p>`:`<p class="none">（未填寫）</p>`}</div>`;
+
+function draw(){
+  document.getElementById('filters').hidden = false;
   document.getElementById('sumbox').hidden = false;
+  drawFilters();
+  const list = visible();
+  document.getElementById('count').textContent = `顯示 ${list.length} / ${RESULTS.length} 筆回覆`;
+  document.getElementById('printinfo').textContent =
+    `篩選條件：${filterText()}　共 ${list.length} 筆回覆　列印日期：${new Date().toLocaleDateString('zh-TW')}`;
   // 總表
   const sum = document.getElementById('summary');
-  sum.innerHTML = `<thead><tr><th>#</th><th>填答人</th><th>團隊</th><th class="c">整體</th>${DIMS.map(d=>`<th class="c">${d.k}</th>`).join('')}</tr></thead><tbody>` +
-    RESULTS.map(r=>`<tr><td class="num">${r.n}</td><td><a href="#rec-${r.n}">${esc(r.name)}</a></td><td>${esc(r.team)}</td>
+  sum.innerHTML = `<thead><tr><th>#</th><th>填答人</th><th>部/處/組</th><th>團隊</th><th class="c">整體</th>${DIMS.map(d=>`<th class="c">${d.k}</th>`).join('')}</tr></thead><tbody>` +
+    list.map(r=>`<tr><td class="num">${r.n}</td><td><a href="#rec-${r.n}">${esc(r.name)}</a></td>
+      <td${r.org.miss?' class="lvx"':''}>${esc(orgPath(r))}</td><td>${esc(r.team)}</td>
       <td class="c">${r.overall!==null?`<span class="cell"><span class="num">${fmt(r.overall)}</span><span class="pill ${lvClass(r.overallStage)}">L${xround(r.overall)}</span></span>`:`<span class="lvx">—</span>`}</td>
       ${r.dims.map(d=>`<td class="c">${d.avg!==null?`<span class="num ${lvClass(d.stage)}" style="font-weight:600">${fmt(d.avg)}</span>`:`<span class="lvx">${d.stage}</span>`}</td>`).join('')}</tr>`).join('') + '</tbody>';
 
   // 每筆評估單
   const box = document.getElementById('records');
   if (!RESULTS.length){ box.innerHTML='<div class="empty">檔案中沒有回覆資料列。</div>'; return; }
-  box.innerHTML = RESULTS.map(r=>`
+  if (!list.length){ box.innerHTML='<div class="empty">沒有符合篩選條件的回覆。</div>'; return; }
+  box.innerHTML = list.map(r=>`
   <article class="rec" id="rec-${r.n}">
     <div class="rec-head">
       <div class="who">
         <div class="eyebrow">回覆 #${r.n}${r.mins!==null?` · 填寫 <span class="num">${r.mins}</span> 分鐘`:''}</div>
         <h2>${esc(r.name)}</h2>
-        <div class="meta">${esc(r.team)}${r.size?` · ${esc(r.size)}`:''}</div>
+        <div class="meta">${[r.emp?`員工編號 <span class="num">${esc(r.emp)}</span>`:'', r.team?`團隊 ${esc(r.team)}`:'', esc(r.size), esc(r.tech)].filter(Boolean).join(' · ')}</div>
+        ${orgHTML(r)}
       </div>
       <div class="score">
         <div class="kv">目前 AI 成熟度階段<b><span class="pill ${lvClass(r.overallStage)}">${esc(r.overallStage)}</span></b></div>
@@ -353,16 +523,23 @@ function render(aoa, rawAoa){
       <div class="radar">${r.radar?radarSVG(r.dims):`<div class="empty">雷達圖待六構面皆有分數後顯示</div>`}
         <p class="note">${r.radar?'各構面適用題目平均，固定 0～5 刻度':'構面待完成或全部不適用時不繪製'}</p></div>
     </div>
-    <div class="feedback"><div class="eyebrow">意見回饋／建議事項</div>${r.feedback?`<p>${esc(r.feedback)}</p>`:`<p class="none">（未填寫）</p>`}</div>
+    ${HAS.hard?noteHTML('目前困難', r.hard):''}${HAS.plan?noteHTML('建議改善方案', r.plan):''}${noteHTML('意見回饋／建議事項', r.feedback)}
   </article>`).join('');
 }
 
-function loadFile(f){
+// kind：'survey' 問卷、'dir' 通訊錄、'auto' 拖曳時依內容判斷
+function loadFile(f, kind){
   const msg = document.getElementById('msg');
   const fr = new FileReader();
   fr.onload = e=>{
     try{
+      msg.hidden = true;
       const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+      if (kind !== 'survey'){
+        const rows = parseDirectory(wb);
+        if (rows && Object.keys(rows).length){ setDirectory(rows, f.name); return; }
+        if (kind === 'dir'){ msg.textContent = '這個檔案不是通訊錄：找不到「員工編號」與「部門」欄，或沒有資料列。'; msg.hidden = false; return; }
+      }
       const ws = wb.Sheets[wb.SheetNames.find(n=>n==='Sheet1') || wb.SheetNames[0]];
       const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
       const rawAoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:true});
@@ -372,15 +549,32 @@ function loadFile(f){
   };
   fr.readAsArrayBuffer(f);
 }
-document.getElementById('file').addEventListener('change', e=>{ if(e.target.files[0]) loadFile(e.target.files[0]); });
+document.getElementById('file').addEventListener('change', e=>{ if(e.target.files[0]) loadFile(e.target.files[0], 'survey'); e.target.value=''; });
+document.getElementById('dirfile').addEventListener('change', e=>{ if(e.target.files[0]) loadFile(e.target.files[0], 'dir'); e.target.value=''; });
+ORG_KEYS.forEach((k,i)=>document.getElementById('f-'+k).addEventListener('change', e=>{
+  FILTER[k] = e.target.value;
+  ORG_KEYS.slice(i+1).forEach(n=>FILTER[n]=ALL);   // 上層改變時，下層重選
+  draw();
+}));
+document.getElementById('reset').addEventListener('click', ()=>{ ORG_KEYS.forEach(k=>FILTER[k]=ALL); draw(); });
+document.getElementById('pdfdetail').addEventListener('change', e=>document.documentElement.classList.toggle('print-detail', e.target.checked));
+// 輸出 PDF：開啟列印對話框，目的地選「另存為 PDF」；檔名帶入篩選條件
+const PAGE_TITLE = document.title;
+document.getElementById('pdf').addEventListener('click', ()=>{
+  const tag = ORG_KEYS.filter(k=>FILTER[k]!==ALL).map(k=>FILTER[k] || '無').join('_');
+  document.title = `${PAGE_TITLE}${tag ? '_'+tag : ''}_${new Date().toISOString().slice(0,10)}`;
+  window.print();
+});
+window.addEventListener('afterprint', ()=>{ document.title = PAGE_TITLE; });
+loadDirCache();
 const drop = document.getElementById('drop');
 ['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('drag');}));
 ['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('drag');}));
-drop.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) loadFile(f); });
+drop.addEventListener('drop', e=>{ [...e.dataTransfer.files].forEach(f=>loadFile(f, 'auto')); });
 
 document.getElementById('copy').addEventListener('click', e=>{
-  const head = ['#','ID','填答人','團隊','人數','整體平均','整體階段', ...DIMS.flatMap(d=>[d.name+' 平均', d.name+' 階段'])];
-  const lines = [head, ...RESULTS.map(r=>[r.n,r.id,r.name,r.team,r.size, r.overall!==null?fmt(r.overall):'', r.overallStage,
+  const head = ['#','ID','填答人','員工編號','部門','處別','組別','團隊','人數','整體平均','整體階段', ...DIMS.flatMap(d=>[d.name+' 平均', d.name+' 階段'])];
+  const lines = [head, ...visible().map(r=>[r.n,r.id,r.name,r.emp,r.org.miss?'':r.org.dept,r.org.div,r.org.grp,r.team,r.size, r.overall!==null?fmt(r.overall):'', r.overallStage,
     ...r.dims.flatMap(d=>[d.avg!==null?fmt(d.avg):'', d.stage])])].map(a=>a.map(v=>String(v??'').replace(/[\t\n]/g,' ')).join('\t')).join('\n');
   const btn = e.currentTarget, old = btn.textContent;
   const done = ok => { btn.textContent = ok ? '已複製' : '無法複製，請改用手動選取'; setTimeout(()=>btn.textContent=old, 1800); };
