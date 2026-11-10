@@ -50,7 +50,9 @@ th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;verti
 th{font-weight:500;color:var(--muted);font-size:.8rem;white-space:nowrap;background:var(--soft)}
 tr:last-child td{border-bottom:0}
 td.c,th.c{text-align:center}
+.summary{table-layout:fixed}
 .summary td{white-space:nowrap}
+.summary td.team,.summary td.name{overflow:hidden;text-overflow:ellipsis}
 .summary a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
 .summary a:hover{border-color:var(--accent)}
 
@@ -134,6 +136,7 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   .print-only{display:block;color:var(--muted);font-size:.9rem;margin-top:4px}
   .scroll{overflow:visible}
   .summary td,.summary th{white-space:normal;padding:5px 6px;font-size:.8rem}
+  .summary td.team,.summary td.name{overflow:visible;overflow-wrap:anywhere}
   .rec{animation:none;break-before:page;border:0;padding:0}
   .rec-body{grid-template-columns:1fr;gap:10px}
   .radar{order:-1;max-width:400px}
@@ -173,7 +176,6 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
     <div class="tools">
       <span class="count" id="count"></span>
       <button class="btn" id="reset" type="button">清除篩選</button>
-      <button class="btn" id="copy" type="button">複製結果表（可貼到 Excel）</button>
       <label class="chk"><input type="checkbox" id="pdfdetail">PDF 包含各題答題明細</label>
       <button class="btn primary" id="pdf" type="button">輸出 PDF</button>
     </div>
@@ -391,7 +393,6 @@ function render(aoa, rawAoa){
 // ── 通訊錄：員工編號 → [部門, 處別, 組別]，快取於 localStorage，重新上傳才更新 ──
 const DIR_KEY = 'iisi.maturity.directory.v1';
 const ORG_KEYS = ['dept','div','grp'];
-const ORG_LABEL = {dept:'部門', div:'處別', grp:'組別'};
 const ALL = '__all__';
 let DIR = null, LOADED = false, HAS = {hard:false, plan:false};
 const FILTER = {dept:ALL, div:ALL, grp:ALL};
@@ -451,9 +452,10 @@ function applyOrg(){
   });
 }
 const visible = () => RESULTS.filter(r => ORG_KEYS.every(k => FILTER[k]===ALL || r.org[k]===FILTER[k]));
+// PDF 頁首：已篩選的 部 / 處 / 組，未篩選則不顯示
 function filterText(){
-  const parts = ORG_KEYS.filter(k=>FILTER[k]!==ALL).map(k=>`${ORG_LABEL[k]}：${FILTER[k] || '（無）'}`);
-  return parts.length ? parts.join('　') : '全部';
+  const parts = ORG_KEYS.filter(k=>FILTER[k]!==ALL).map(k=>FILTER[k] || '（無）');
+  return parts.length ? parts.join(' / ') + '　' : '';
 }
 function drawFilters(){
   let pool = RESULTS;
@@ -471,6 +473,8 @@ function orgHTML(r){
   if (r.org.miss) return `<div class="org"><span class="org-miss">${DIR ? `通訊錄查無員工編號 ${esc(r.emp || '（問卷無電子郵件）')}` : '尚未上傳通訊錄'}</span></div>`;
   return `<div class="org"><span class="org-chip">${esc(orgPath(r))}</span></div>`;
 }
+// 總表填答人只取中文姓名；沒有中文字時維持原值
+const zhName = v => (String(v ?? '').match(/[\u3400-\u9fff]+/g) || []).join('') || String(v ?? '');
 // 部/處/組：沒有處或組就不顯示該段
 const orgPath = r => ORG_KEYS.map(k=>r.org[k]).filter(Boolean).join(' / ');
 const noteHTML = (title, v) => `<div class="feedback"><div class="eyebrow">${title}</div>${v?`<p>${esc(v)}</p>`:`<p class="none">（未填寫）</p>`}</div>`;
@@ -482,12 +486,12 @@ function draw(){
   const list = visible();
   document.getElementById('count').textContent = `顯示 ${list.length} / ${RESULTS.length} 筆回覆`;
   document.getElementById('printinfo').textContent =
-    `篩選條件：${filterText()}　共 ${list.length} 筆回覆　列印日期：${new Date().toLocaleDateString('zh-TW')}`;
+    `${filterText()}共 ${list.length} 筆回覆　列印日期：${new Date().toLocaleDateString('zh-TW')}`;
   // 總表
   const sum = document.getElementById('summary');
-  sum.innerHTML = `<thead><tr><th>#</th><th>填答人</th><th>部/處/組</th><th>團隊</th><th class="c">整體</th>${DIMS.map(d=>`<th class="c">${d.k}</th>`).join('')}</tr></thead><tbody>` +
-    list.map(r=>`<tr><td class="num">${r.n}</td><td><a href="#rec-${r.n}">${esc(r.name)}</a></td>
-      <td${r.org.miss?' class="lvx"':''}>${esc(orgPath(r))}</td><td>${esc(r.team)}</td>
+  sum.innerHTML = `<colgroup><col style="width:44px"><col style="width:7em"><col><col style="width:108px">${DIMS.map(()=>'<col style="width:60px">').join('')}</colgroup><thead><tr><th>#</th><th>填答人</th><th>團隊</th><th class="c">整體</th>${DIMS.map(d=>`<th class="c">${d.k}</th>`).join('')}</tr></thead><tbody>` +
+    list.map(r=>`<tr><td class="num">${r.n}</td><td class="name"><a href="#rec-${r.n}">${esc(zhName(r.name))}</a></td>
+      <td class="team" title="${esc(r.team)}">${esc(r.team)}</td>
       <td class="c">${r.overall!==null?`<span class="cell"><span class="num">${fmt(r.overall)}</span><span class="pill ${lvClass(r.overallStage)}">L${xround(r.overall)}</span></span>`:`<span class="lvx">—</span>`}</td>
       ${r.dims.map(d=>`<td class="c">${d.avg!==null?`<span class="num ${lvClass(d.stage)}" style="font-weight:600">${fmt(d.avg)}</span>`:`<span class="lvx">${d.stage}</span>`}</td>`).join('')}</tr>`).join('') + '</tbody>';
 
@@ -501,7 +505,7 @@ function draw(){
       <div class="who">
         <div class="eyebrow">回覆 #${r.n}${r.mins!==null?` · 填寫 <span class="num">${r.mins}</span> 分鐘`:''}</div>
         <h2>${esc(r.name)}</h2>
-        <div class="meta">${[r.emp?`員工編號 <span class="num">${esc(r.emp)}</span>`:'', r.team?`團隊 ${esc(r.team)}`:'', esc(r.size), esc(r.tech)].filter(Boolean).join(' · ')}</div>
+        <div class="meta">${[r.emp?`<span class="num">${esc(r.emp)}</span>`:'', esc(r.team), esc(r.size), esc(r.tech)].filter(Boolean).join(' · ')}</div>
         ${orgHTML(r)}
       </div>
       <div class="score">
@@ -571,15 +575,5 @@ const drop = document.getElementById('drop');
 ['dragenter','dragover'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.add('drag');}));
 ['dragleave','drop'].forEach(t=>drop.addEventListener(t,e=>{e.preventDefault();drop.classList.remove('drag');}));
 drop.addEventListener('drop', e=>{ [...e.dataTransfer.files].forEach(f=>loadFile(f, 'auto')); });
-
-document.getElementById('copy').addEventListener('click', e=>{
-  const head = ['#','ID','填答人','員工編號','部門','處別','組別','團隊','人數','整體平均','整體階段', ...DIMS.flatMap(d=>[d.name+' 平均', d.name+' 階段'])];
-  const lines = [head, ...visible().map(r=>[r.n,r.id,r.name,r.emp,r.org.miss?'':r.org.dept,r.org.div,r.org.grp,r.team,r.size, r.overall!==null?fmt(r.overall):'', r.overallStage,
-    ...r.dims.flatMap(d=>[d.avg!==null?fmt(d.avg):'', d.stage])])].map(a=>a.map(v=>String(v??'').replace(/[\t\n]/g,' ')).join('\t')).join('\n');
-  const btn = e.currentTarget, old = btn.textContent;
-  const done = ok => { btn.textContent = ok ? '已複製' : '無法複製，請改用手動選取'; setTimeout(()=>btn.textContent=old, 1800); };
-  try { navigator.clipboard.writeText(lines).then(()=>done(true), ()=>done(false)); } catch { done(false); }
-});
-
 
 </script>
