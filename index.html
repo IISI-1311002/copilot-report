@@ -2776,10 +2776,22 @@ function parseBudgetEmployeeIds(raw) {
   return lines;
 }
 
-/* 已有 Budget 時依 ID 更新，否則建立 user scope Copilot AI credits Budget。 */
+/* 下個計費週期起點：下個月 1 號（UTC）。
+   GitHub Budget API 的 expires_at 僅接受 YYYY-MM-DD 日期字串（例：2026-12-01）。 */
+function nextBillingCycleStartUtc(now = new Date()) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1))
+    .toISOString().slice(0, 10);
+}
+
+/* 已有 Budget 時依 ID 更新，否則建立 user scope Copilot AI credits Budget。
+   預算於下個計費週期開始時過期（expires_at）。 */
 async function saveUserBudget(token, username, amount, budgetId = null) {
   const isUpdate = budgetId !== null;
-  const body = { budget_amount: amount, prevent_further_usage: true };
+  const body = {
+    budget_amount: amount,
+    prevent_further_usage: true,
+    expires_at: nextBillingCycleStartUtc()
+  };
   if (!isUpdate) {
     Object.assign(body, {
       budget_scope: 'user',
