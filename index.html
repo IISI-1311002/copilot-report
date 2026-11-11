@@ -991,7 +991,7 @@ tbody tr.row-zero:hover td { color: #64748b; }
             <option value="custom">自訂金額</option>
           </select>
           <input type="number" id="budgetAmount" min="0" step="1" value="70" aria-label="自訂預算金額" style="display:none;">
-          <span class="budget-hint">可選擇 70、100、150，或自行輸入其他整數金額。</span>
+          <span class="budget-hint">可選擇 70、100、150，或自行輸入其他整數金額。層級為 40 → 70 → 100 → 150，須逐層調升、不可跳級（例：設定 70 時目前預算必須為 40）。</span>
         </div>
       </div>
       <div class="budget-actions">
@@ -2821,6 +2821,27 @@ async function saveUserBudget(token, username, amount, budgetId = null) {
   }
 }
 
+/* 預算層級（USD）：只能由前一層往上加一層，不可跳級。
+   第一層 40 為基本額度；尚未設定個人預算者視為 40。 */
+const BUDGET_TIERS = [40, 70, 100, 150];
+
+/* 檢查目標金額是否為目前預算的下一層級；不符則丟出含失敗原因的 Error。
+   目標金額不在層級表內（自訂金額）時不套用層級檢查。 */
+function checkBudgetTierStep(existing, amount) {
+  const idx = BUDGET_TIERS.indexOf(amount);
+  if (idx <= 0) return;
+  const required = BUDGET_TIERS[idx - 1];
+  const current = existing ? Number(existing.budget_amount) : BUDGET_TIERS[0];
+  if (current === required) return;
+  const currentText = existing
+    ? `目前預算為 $${existing.budget_amount} USD`
+    : `目前尚未設定個人預算（視為 $${BUDGET_TIERS[0]} USD）`;
+  throw new Error(
+    `設定失敗：${currentText}，設定 $${amount} 前目前預算必須為 $${required}` +
+    `（層級 ${BUDGET_TIERS.join(' → ')}，不可跳級）`
+  );
+}
+
 const budgetAmountPreset = document.getElementById('budgetAmountPreset');
 const budgetAmountInput = document.getElementById('budgetAmount');
 
@@ -2907,6 +2928,7 @@ document.getElementById('setBudgetsBtn').addEventListener('click', async () => {
       );
       if (matches.length > 1) throw new Error('找到多筆 AI credits 預算，請先確認既有設定。');
       const existing = matches[0];
+      checkBudgetTierStep(existing, amount);
       await saveUserBudget(token, username, amount, existing ? existing.id : null);
       ok++;
       resultLines.push(`✓ ${username} — 已${existing ? '更新' : '新增'} $${amount} USD`);
