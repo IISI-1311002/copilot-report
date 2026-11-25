@@ -54,7 +54,6 @@ td.c,th.c{text-align:center}
 .summary td{white-space:nowrap}
 .summary td.dept{white-space:normal;overflow-wrap:anywhere}
 .summary>tfoot>tr:first-child>td{background:var(--accent-soft);border-top:2px solid var(--accent);font-weight:600}
-.summary-note{margin:8px 0 0;color:var(--muted);font-size:.82rem}
 .summary-row{cursor:pointer}
 .summary-row:hover>td{background:var(--soft)}
 .summary-row .dim-btn{white-space:normal}
@@ -122,7 +121,6 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
 .fld select{font:inherit;font-size:.9rem;color:var(--ink);background:var(--paper);border:1px solid var(--line);border-radius:7px;padding:6px 8px;width:100%}
 .tools{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;width:100%}
 .count{color:var(--muted);font-size:.88rem;flex:1 1 160px}
-.chk{font-size:.86rem;color:var(--muted);display:inline-flex;gap:6px;align-items:center}
 .org{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .org-chip{font-size:.84rem;padding:1px 9px;border-radius:6px;background:var(--soft)}
 .org-chip i{font-style:normal;color:var(--muted);font-size:.74rem;margin-right:6px}
@@ -142,6 +140,7 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   body{margin:0;background:#fff;font-size:11.25px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .wrap{max-width:none;padding:0;gap:16px}
   .loader,.filters{display:none!important}
+  .screen-summary{display:none!important}
   .print-only{display:block;color:var(--muted);font-size:.9rem;margin-top:4px}
   .rules{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
   .rule{padding:6px 8px}
@@ -150,9 +149,9 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   .summary td,.summary th{white-space:normal}
   .summary{min-width:0;table-layout:auto}
   .summary td.dept,.summary-row .dim-btn{white-space:nowrap;overflow-wrap:normal}
-  .summary>colgroup>col:nth-child(2),.summary>colgroup>col:nth-child(3){width:5em!important}
-  .summary>colgroup>col:nth-child(4),.summary-people>colgroup>col:nth-child(4){width:9em!important}
-  .summary>colgroup>col:nth-child(n+5),.summary-people>colgroup>col:nth-child(n+5){width:4.5em!important}
+  .summary-people td.team{white-space:nowrap;overflow-wrap:normal}
+  .summary:not(.summary-people)>colgroup>col:nth-child(2),.summary-people>colgroup>col:nth-child(4){width:9em!important}
+  .summary:not(.summary-people)>colgroup>col:nth-child(n+3),.summary-people>colgroup>col:nth-child(n+5){width:4.5em!important}
   .summary-people>colgroup>col:first-child{width:3em!important}
   .summary-people>colgroup>col:nth-child(2){width:6.5em!important}
   .summary-detail>td{padding:8px}
@@ -165,7 +164,6 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   .next{min-width:0}
   .pill{padding:1px 6px}
   .cell,.dim-btn{gap:4px}
-  html.print-detail .detail[hidden]{display:table-row!important}
   .dims .dim-row td:first-child{white-space:normal}
   .dim-btn{white-space:normal}
   .chev{display:none!important}
@@ -202,7 +200,6 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
     <div class="tools">
       <span class="count" id="count"></span>
       <button class="btn" id="reset" type="button">清除篩選</button>
-      <label class="chk"><input type="checkbox" id="pdfdetail">PDF 包含各題答題明細</label>
       <button class="btn primary" id="pdf" type="button">輸出 PDF</button>
     </div>
   </section>
@@ -216,10 +213,8 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   </section>
 
   <section id="sumbox" hidden>
-    <div class="eyebrow" style="margin-bottom:8px">總表：部門平均成熟度</div>
-    <div class="scroll"><table class="summary" id="summary" aria-label="部門與全公司平均成熟度" aria-describedby="summary-note"></table></div>
-    <p class="summary-note">點選部門或全公司列可展開／收合個人細項，再點選填答人姓名查看完整評估明細。若該人不在目前篩選範圍，會先清除篩選。</p>
-    <p class="summary-note" id="summary-note">部門依通訊錄歸屬，部門列依目前篩選統計；全公司列固定統計全部已載入回覆（含部門未對應者）。平均成熟度以每筆有效回覆的整體分數等權平均，各構面則分別平均其有效分數；待完成或不適用而無分數者不計入該項平均，無有效分數顯示「—」。有效筆數指整體有分數的回覆數，全公司平均不採部門平均再平均。</p>
+    <div class="scroll screen-summary" id="summary"></div>
+    <div class="scroll print-only" id="print-summary"></div>
   </section>
 
   <section class="records" id="records"></section>
@@ -528,21 +523,38 @@ function summaryScoreHTML(score, withStage=false){
   return `<span class="cell" title="有效計分 ${score.count} 筆"><span class="num lv${level}">${fmt(score.avg)}</span>${withStage?`<span class="pill lv${level}">L${level}</span>`:''}</span>`;
 }
 const chineseName = name => (String(name ?? '').match(/\p{Script=Han}+/gu) || []).join('') || '（無中文姓名）';
-function summaryPeopleHTML(rows){
-  return `<table class="summary-people" aria-label="個人成熟度細項">
+function summaryPeopleHTML(rows, {standalone=false, forPrint=false}={}){
+  const stats = standalone ? summarize(rows) : null;
+  return `<table class="summary-people${standalone?' summary':''}" aria-label="個人成熟度細項">
     <colgroup><col style="width:44px"><col style="width:7em"><col><col style="width:120px">${DIMS.map(()=>'<col style="width:60px">').join('')}</colgroup>
     <thead><tr><th scope="col">#</th><th scope="col">填答人</th><th scope="col">團隊</th><th scope="col" class="c">整體成熟度</th>${DIMS.map(d=>`<th scope="col" class="c" title="${esc(d.name)}">${d.k}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r=>`<tr><td class="num">${r.n}</td><td class="person"><a href="#rec-${r.n}" data-record="${r.n}" title="查看完整評估明細">${esc(chineseName(r.name))}</a></td><td class="team">${esc(r.team)}</td>
+    <tbody>${rows.map((r,i)=>`<tr><td class="num">${i+1}</td><td class="person">${forPrint?esc(chineseName(r.name)):`<a href="#rec-${r.n}" data-record="${r.n}" title="查看完整評估明細">${esc(chineseName(r.name))}</a>`}</td><td class="team">${esc(r.team)}</td>
       <td class="c">${r.overall!==null?summaryScoreHTML({avg:r.overall,count:1},true):`<span class="lvx" title="${esc(r.overallStage)}">—</span>`}</td>
-      ${r.dims.map(d=>`<td class="c">${d.avg!==null?summaryScoreHTML({avg:d.avg,count:1}):`<span class="lvx">${esc(d.stage)}</span>`}</td>`).join('')}</tr>`).join('')}</tbody>
+      ${r.dims.map(d=>`<td class="c">${d.avg!==null?summaryScoreHTML({avg:d.avg,count:1}):`<span class="lvx">${esc(d.stage)}</span>`}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="10" class="c lvx">沒有符合篩選條件的回覆。</td></tr>'}</tbody>
+    ${stats?`<tfoot><tr><td colspan="3">部門平均成熟度${FILTER.div!==ALL || FILTER.grp!==ALL?'（目前篩選）':''}</td><td class="c">${summaryScoreHTML(stats.overall, true)}</td>${stats.dims.map(d=>`<td class="c">${summaryScoreHTML(d)}</td>`).join('')}</tr></tfoot>`:''}
   </table>`;
 }
-function summaryRowHTML(label, rows, detailId){
+function summaryRowHTML(label, rows, detailId, showCount=false){
   const stats = summarize(rows);
-  const expandable = rows.length>0;
-  return `<tr${expandable?` class="summary-row" data-target="${detailId}"`:''}><td class="dept">${expandable?`<button type="button" class="dim-btn" aria-expanded="false" aria-controls="${detailId}"><span class="chev" aria-hidden="true">▸</span>${esc(label)}</button>`:esc(label)}</td><td class="c num">${stats.count}</td><td class="c num">${stats.overall.count}</td>
+  if (showCount) label += ` (${stats.overall.count})`;
+  const expandable = Boolean(detailId) && rows.length>0;
+  return `<tr${expandable?` class="summary-row" data-target="${detailId}"`:''}><td class="dept">${expandable?`<button type="button" class="dim-btn" aria-expanded="false" aria-controls="${detailId}"><span class="chev" aria-hidden="true">▸</span>${esc(label)}</button>`:esc(label)}</td>
     <td class="c">${summaryScoreHTML(stats.overall, true)}</td>${stats.dims.map(d=>`<td class="c">${summaryScoreHTML(d)}</td>`).join('')}</tr>
-    ${expandable?`<tr class="summary-detail" id="${detailId}" hidden><td colspan="10">${summaryPeopleHTML(rows)}</td></tr>`:''}`;
+    ${expandable?`<tr class="summary-detail" id="${detailId}" hidden><td colspan="8">${summaryPeopleHTML(rows)}</td></tr>`:''}`;
+}
+
+function departmentSummaryHTML(list, expandable=true){
+  // 部門列套用篩選；全公司列採全部回覆，直接平均有效分數。
+  const departments = new Map();
+  list.forEach(r=>{
+    const dept = r.org.dept || '（未填部門）';
+    if (!departments.has(dept)) departments.set(dept, []);
+    departments.get(dept).push(r);
+  });
+  return `<colgroup><col><col style="width:120px">${DIMS.map(()=>'<col style="width:60px">').join('')}</colgroup>
+    <thead><tr><th scope="col">部門</th><th scope="col" class="c">平均成熟度</th>${DIMS.map(d=>`<th scope="col" class="c" title="${esc(d.name)}">${d.k}</th>`).join('')}</tr></thead>
+    <tbody>${[...departments].sort(([a],[b])=>a.localeCompare(b,'zh-Hant')).map(([dept, rows], i)=>summaryRowHTML(dept, rows, expandable?'summary-dept-'+i:null, true)).join('') || '<tr><td colspan="8" class="c lvx">沒有符合篩選條件的回覆。</td></tr>'}</tbody>
+    <tfoot>${summaryRowHTML('全公司', RESULTS, expandable?'summary-company':null)}</tfoot>`;
 }
 
 function draw(){
@@ -553,18 +565,14 @@ function draw(){
   document.getElementById('count').textContent = `顯示 ${list.length} / ${RESULTS.length} 筆回覆`;
   document.getElementById('printinfo').textContent =
     `${filterText()}共 ${list.length} 筆回覆　列印日期：${new Date().toLocaleDateString('zh-TW')}`;
-  // 部門列套用篩選；全公司列採全部回覆，直接平均有效分數。
-  const departments = new Map();
-  list.forEach(r=>{
-    const dept = r.org.dept || '（未填部門）';
-    if (!departments.has(dept)) departments.set(dept, []);
-    departments.get(dept).push(r);
-  });
-  const sum = document.getElementById('summary');
-  sum.innerHTML = `<colgroup><col><col style="width:64px"><col style="width:64px"><col style="width:120px">${DIMS.map(()=>'<col style="width:60px">').join('')}</colgroup>
-    <thead><tr><th scope="col">部門（點擊展開個人細項）</th><th scope="col" class="c">回覆筆數</th><th scope="col" class="c">有效筆數</th><th scope="col" class="c">平均成熟度</th>${DIMS.map(d=>`<th scope="col" class="c" title="${esc(d.name)}">${d.k}</th>`).join('')}</tr></thead>
-    <tbody>${[...departments].sort(([a],[b])=>a.localeCompare(b,'zh-Hant')).map(([dept, rows], i)=>summaryRowHTML(dept, rows, 'summary-dept-'+i)).join('') || '<tr><td colspan="10" class="c lvx">沒有符合篩選條件的回覆。</td></tr>'}</tbody>
-    <tfoot>${summaryRowHTML('全公司（全部回覆）', RESULTS, 'summary-company')}</tfoot>`;
+  const singleDepartment = FILTER.dept!==ALL;
+  document.getElementById('summary').innerHTML = singleDepartment
+    ? summaryPeopleHTML(list, {standalone:true})
+    : `<table class="summary" aria-label="部門與全公司平均成熟度">${departmentSummaryHTML(list)}</table>`;
+  // 列印沿用部門／處別／組別篩選，獨立呈現總表以保留畫面展開狀態。
+  document.getElementById('print-summary').innerHTML = singleDepartment
+    ? summaryPeopleHTML(list, {standalone:true, forPrint:true})
+    : `<table class="summary" aria-label="部門與全公司平均成熟度">${departmentSummaryHTML(list, false)}</table>`;
 
   // 每筆評估單
   const box = document.getElementById('records');
@@ -632,7 +640,6 @@ ORG_KEYS.forEach((k,i)=>document.getElementById('f-'+k).addEventListener('change
   draw();
 }));
 document.getElementById('reset').addEventListener('click', ()=>{ ORG_KEYS.forEach(k=>FILTER[k]=ALL); draw(); });
-document.getElementById('pdfdetail').addEventListener('change', e=>document.documentElement.classList.toggle('print-detail', e.target.checked));
 // 輸出 PDF：開啟列印對話框，目的地選「另存為 PDF」；檔名帶入篩選條件
 const PAGE_TITLE = document.title;
 document.getElementById('pdf').addEventListener('click', ()=>{
