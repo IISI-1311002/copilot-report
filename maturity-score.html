@@ -25,6 +25,7 @@
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.6}
 .wrap{max-width:1120px;margin:0 auto;padding-inline:20px;padding-block:28px 64px;display:flex;flex-direction:column;gap:28px}
+.summary-page{display:contents}
 h1,h2{font-family:var(--f-display);text-wrap:balance;margin:0}
 h1{font-size:1.9rem;letter-spacing:.02em}
 .sub{color:var(--muted);margin:.35rem 0 0;max-width:68ch}
@@ -43,6 +44,9 @@ h1{font-size:1.9rem;letter-spacing:.02em}
 .rule{padding:8px 10px;border-radius:8px;background:var(--paper);border:1px solid var(--line);font-size:.82rem}
 .rule b{display:block;font-size:.88rem}
 .rule .num{color:var(--muted)}
+.dimension-rules{grid-template-columns:repeat(3,minmax(0,1fr))}
+.dimension-rules span{color:var(--muted)}
+@media (max-width:600px){.dimension-rules{grid-template-columns:1fr}}
 
 .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--paper)}
 table{border-collapse:collapse;width:100%}
@@ -139,10 +143,13 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   html{font-size:12px}
   body{margin:0;background:#fff;font-size:11.25px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .wrap{max-width:none;padding:0;gap:16px}
+  .summary-page{display:flex;flex-direction:column;gap:16px;min-height:273mm}
+  .summary-page>footer{margin-top:auto;break-before:avoid}
   .loader,.filters{display:none!important}
   .screen-summary{display:none!important}
   .print-only{display:block;color:var(--muted);font-size:.9rem;margin-top:4px}
   .rules{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+  .dimension-rules{grid-template-columns:repeat(3,minmax(0,1fr))}
   .rule{padding:6px 8px}
   .scroll{overflow:visible}
   th,td{padding:5px 6px;white-space:normal}
@@ -173,6 +180,7 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
 </style>
 
 <div class="wrap">
+  <div class="summary-page">
   <header>
     <div class="eyebrow">AI 輔助軟體開發與維運成熟度模型</div>
     <h1>IISI AI 成熟度計分</h1>
@@ -212,15 +220,25 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
     <div class="rule"><b class="lv5">L5 AI-native / Agentic</b><span class="num">4.50 ≤ 分數 ≤ 5.00</span></div>
   </section>
 
+  <section class="rules dimension-rules" aria-label="六大構面說明">
+    <div class="rule"><b>A. AI 使用與協作模式</b><span>如何使用 AI，以及人與 AI 的分工協作。</span></div>
+    <div class="rule"><b>B. 開發生命週期整合</b><span>AI 在需求、設計、開發、測試與交付中的整合程度。</span></div>
+    <div class="rule"><b>C. 測試、品質與工程控制</b><span>透過測試、審查與安全檢查，確保 AI 產出的品質。</span></div>
+    <div class="rule"><b>D. 維運與 SRE 整合</b><span>運用 AI 協助監控、事件處理與系統維運。</span></div>
+    <div class="rule"><b>E. 知識、Context 與開發平台</b><span>提供 AI 所需的文件、專案脈絡與開發工具。</span></div>
+    <div class="rule"><b>F. 管理、治理與績效衡量</b><span>建立 AI 使用規範，並追蹤成效、成本與風險。</span></div>
+  </section>
+
   <section id="sumbox" hidden>
     <div class="scroll screen-summary" id="summary"></div>
     <div class="scroll print-only" id="print-summary"></div>
   </section>
 
-  <section class="records" id="records"></section>
-
   <footer>
     計分規則：L1～L5 對應 1～5 分；「不適用」視為已完成但不計分，空白與無法辨識的答案視為未完成。構面須全部題目完成才計平均，整個構面不適用時不給分；整體分數以全部適用題目平均，須全部題目完成才顯示。階段依未四捨五入的平均分數判定，畫面顯示至小數第 2 位。改善優先順序標示全部完成後分數最低的構面。雷達圖固定 0～5 刻度，須六構面皆有分數才顯示。  </footer>
+  </div>
+
+  <section class="records" id="records"></section>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
