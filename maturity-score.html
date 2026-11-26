@@ -78,7 +78,7 @@ td.c,th.c{text-align:center}
 .rec{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:16px;scroll-margin-top:16px}
 .rec-head{display:flex;flex-wrap:wrap;gap:12px 28px;align-items:flex-end;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px}
 .who{min-width:0}
-.who h2{font-size:1.3rem}
+.who h2{font-size:1.3rem;overflow-wrap:anywhere}
 .who .meta{color:var(--muted);font-size:.86rem;overflow-wrap:anywhere}
 .score{display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap}
 .big{font-family:var(--f-mono);font-size:2.3rem;font-weight:600;line-height:1}
@@ -160,7 +160,7 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   .summary:not(.summary-people)>colgroup>col:nth-child(2),.summary-people>colgroup>col:nth-child(4){width:9em!important}
   .summary:not(.summary-people)>colgroup>col:nth-child(n+3),.summary-people>colgroup>col:nth-child(n+5){width:4.5em!important}
   .summary-people>colgroup>col:first-child{width:3em!important}
-  .summary-people>colgroup>col:nth-child(2){width:6.5em!important}
+  .summary-people>colgroup>col:nth-child(3){width:6.5em!important}
   .summary-detail>td{padding:8px}
   .summary>tfoot{display:table-row-group}
   .rec{animation:none;break-before:page;padding:12px;gap:12px}
@@ -543,10 +543,10 @@ function summaryScoreHTML(score, withStage=false){
 const chineseName = name => (String(name ?? '').match(/\p{Script=Han}+/gu) || []).join('') || '（無中文姓名）';
 function summaryPeopleHTML(rows, {standalone=false, forPrint=false}={}){
   const stats = standalone ? summarize(rows) : null;
-  return `<table class="summary-people${standalone?' summary':''}" aria-label="個人成熟度細項">
-    <colgroup><col style="width:44px"><col style="width:7em"><col><col style="width:120px">${DIMS.map(()=>'<col style="width:60px">').join('')}</colgroup>
-    <thead><tr><th scope="col">#</th><th scope="col">填答人</th><th scope="col">團隊</th><th scope="col" class="c">整體成熟度</th>${DIMS.map(d=>`<th scope="col" class="c" title="${esc(d.name)}">${d.k}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map((r,i)=>`<tr><td class="num">${i+1}</td><td class="person">${forPrint?esc(chineseName(r.name)):`<a href="#rec-${r.n}" data-record="${r.n}" title="查看完整評估明細">${esc(chineseName(r.name))}</a>`}</td><td class="team">${esc(r.team)}</td>
+  return `<table class="summary-people${standalone?' summary':''}" aria-label="團隊成熟度細項">
+    <colgroup><col style="width:44px"><col><col style="width:7em"><col style="width:120px">${DIMS.map(()=>'<col style="width:60px">').join('')}</colgroup>
+    <thead><tr><th scope="col">#</th><th scope="col">團隊</th><th scope="col">填答人</th><th scope="col" class="c">整體成熟度</th>${DIMS.map(d=>`<th scope="col" class="c" title="${esc(d.name)}">${d.k}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map((r,i)=>`<tr><td class="num">${i+1}</td><td class="team">${forPrint?esc(r.team || '（未填團隊）'):`<a href="#rec-${r.n}" data-record="${r.n}" title="查看完整評估明細">${esc(r.team || '（未填團隊）')}</a>`}</td><td class="person">${esc(chineseName(r.name))}</td>
       <td class="c">${r.overall!==null?summaryScoreHTML({avg:r.overall,count:1},true):`<span class="lvx" title="${esc(r.overallStage)}">—</span>`}</td>
       ${r.dims.map(d=>`<td class="c">${d.avg!==null?summaryScoreHTML({avg:d.avg,count:1}):`<span class="lvx">${esc(d.stage)}</span>`}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="10" class="c lvx">沒有符合篩選條件的回覆。</td></tr>'}</tbody>
     ${stats?`<tfoot><tr><td colspan="3">部門平均成熟度${FILTER.div!==ALL || FILTER.grp!==ALL?'（目前篩選）':''}</td><td class="c">${summaryScoreHTML(stats.overall, true)}</td>${stats.dims.map(d=>`<td class="c">${summaryScoreHTML(d)}</td>`).join('')}</tr></tfoot>`:''}
@@ -601,8 +601,8 @@ function draw(){
     <div class="rec-head">
       <div class="who">
         <div class="eyebrow">回覆 #${r.n}${r.mins!==null?` · 填寫 <span class="num">${r.mins}</span> 分鐘`:''}</div>
-        <h2>${esc(r.name)}</h2>
-        <div class="meta">${[r.emp?`<span class="num">${esc(r.emp)}</span>`:'', esc(r.team), esc(r.size), esc(r.tech)].filter(Boolean).join(' · ')}</div>
+        <h2>${esc(r.team || '（未填團隊）')}</h2>
+        <div class="meta">${[r.emp?`<span class="num">${esc(r.emp)}</span>`:'', esc(r.name), esc(r.size), esc(r.tech)].filter(Boolean).join(' · ')}</div>
         ${orgHTML(r)}
       </div>
       <div class="score">
