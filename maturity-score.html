@@ -133,7 +133,21 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
 .print-only{display:none}
 
 /* 輸出 PDF：以瀏覽器列印，等比例縮小字級、保留左表右圖，每筆評估單另起一頁 */
-@page{size:A4;margin:12mm}
+@page{
+  size:A4;
+  margin:12mm;
+  /* 使用每頁獨立的頁首留白，與正文分開排版。 */
+  @top-right{
+    content:"機密等級 : 敏感文件";
+    font-family:"Noto Sans TC","Microsoft JhengHei",sans-serif;
+    font-size:9pt;
+    font-weight:700;
+    color:#18232b;
+    text-align:right;
+    vertical-align:middle;
+    white-space:nowrap;
+  }
+}
 @media print{
   :root,:root[data-theme="dark"],:root:not([data-theme="light"]){
     --bg:#ffffff; --paper:#ffffff; --ink:#18232b; --muted:#5d6b75; --line:#d9e0e4; --soft:#eaeff2;
@@ -148,8 +162,6 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   .loader,.filters{display:none!important}
   .screen-summary{display:none!important}
   .print-only{display:block;color:var(--muted);font-size:.9rem;margin-top:4px}
-  .header-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
-  .print-classification{margin-top:0;color:var(--ink);font-weight:700;white-space:nowrap}
   .rules{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
   .dimension-rules{grid-template-columns:repeat(3,minmax(0,1fr))}
   .rule{padding:6px 8px}
@@ -184,10 +196,7 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
 <div class="wrap">
   <div class="summary-page">
   <header>
-    <div class="header-top">
-      <div class="eyebrow">AI 輔助軟體開發與維運成熟度模型</div>
-      <div class="print-only print-classification">機密等級 : 敏感文件</div>
-    </div>
+    <div class="eyebrow">AI 輔助軟體開發與維運成熟度模型</div>
     <h1>IISI AI 輔助開發與維運成熟度自評結果</h1>
     <p class="sub">各團隊的任務、情境與適用構面不同，自評分數不宜直接比較或作為績效評比</p>
     <div class="print-only" id="printinfo"></div>
