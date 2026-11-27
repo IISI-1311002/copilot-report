@@ -1,4 +1,4 @@
-<title>IISI AI 成熟度計分</title>
+<title>IISI AI 輔助開發與維運成熟度自評結果</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
 <style>
@@ -183,7 +183,8 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   <div class="summary-page">
   <header>
     <div class="eyebrow">AI 輔助軟體開發與維運成熟度模型</div>
-    <h1>IISI AI 成熟度計分</h1>
+    <h1>IISI AI 輔助開發與維運成熟度自評結果</h1>
+    <p class="sub">各團隊的任務、情境與適用構面不同，自評分數不宜直接比較或作為績效評比</p>
     <div class="print-only" id="printinfo"></div>
   </header>
 
@@ -582,7 +583,7 @@ function draw(){
   const list = visible();
   document.getElementById('count').textContent = `顯示 ${list.length} / ${RESULTS.length} 筆回覆`;
   document.getElementById('printinfo').textContent =
-    `${filterText()}共 ${list.length} 筆回覆　列印日期：${new Date().toLocaleDateString('zh-TW')}`;
+    `${filterText()}共 ${list.length} 筆回覆　資料日期：${new Date().toLocaleDateString('zh-TW')}`;
   const singleDepartment = FILTER.dept!==ALL;
   document.getElementById('summary').innerHTML = singleDepartment
     ? summaryPeopleHTML(list, {standalone:true})
