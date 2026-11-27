@@ -148,6 +148,8 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
   .loader,.filters{display:none!important}
   .screen-summary{display:none!important}
   .print-only{display:block;color:var(--muted);font-size:.9rem;margin-top:4px}
+  .header-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+  .print-classification{margin-top:0;color:var(--ink);font-weight:700;white-space:nowrap}
   .rules{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
   .dimension-rules{grid-template-columns:repeat(3,minmax(0,1fr))}
   .rule{padding:6px 8px}
@@ -182,7 +184,10 @@ footer{color:var(--muted);font-size:.8rem;line-height:1.7;width:100%;border-top:
 <div class="wrap">
   <div class="summary-page">
   <header>
-    <div class="eyebrow">AI 輔助軟體開發與維運成熟度模型</div>
+    <div class="header-top">
+      <div class="eyebrow">AI 輔助軟體開發與維運成熟度模型</div>
+      <div class="print-only print-classification">機密等級 : 敏感文件</div>
+    </div>
     <h1>IISI AI 輔助開發與維運成熟度自評結果</h1>
     <p class="sub">各團隊的任務、情境與適用構面不同，自評分數不宜直接比較或作為績效評比</p>
     <div class="print-only" id="printinfo"></div>
